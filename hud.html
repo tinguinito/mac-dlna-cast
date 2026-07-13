@@ -647,7 +647,7 @@
   }
 
   function applyLost(){
-    setStatus("s-lost","SEÑAL PERDIDA / RECONECTANDO");
+    setStatus("s-lost","⚠ FALLA DEL REACTOR / RECONECTANDO");
     // keep last known values, but flag heart as unknown
     var heart=$("t-heart");
     if(heart) heart.className="heart dead";
