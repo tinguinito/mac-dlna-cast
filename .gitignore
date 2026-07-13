@@ -7,3 +7,5 @@ server.log
 .DS_Store
 __pycache__/
 *.pyc
+# IP del TV cacheada (local)
+.dlna_tv_ip

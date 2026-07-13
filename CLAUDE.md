@@ -20,7 +20,7 @@ Dos archivos son el proyecto entero:
 # Levantar (3 formas)
 python3 server_dlna.py "/ruta/pelicula.mp4"              # un archivo
 python3 server_dlna.py "/ruta/pelicula.mp4" --start 22:00 # arranca en ese minuto
-DLNA_TV_IP=192.168.1.50 python3 server_dlna.py ~/Movies # carpeta = biblioteca (+ hint de IP del TV)
+python3 server_dlna.py ~/Movies                          # carpeta = biblioteca (autodetecta el TV)
 
 # Verificar sintaxis (no hay build/lint/test formal)
 python3 -m py_compile server_dlna.py
@@ -81,10 +81,11 @@ no, cae a la estimación de `/stats.json`. Endpoints de control:
   `cast_to_tv()` espera a PLAYING antes de saltar.
 
 - **Descubrir el renderer por multicast es poco fiable** entre bandas 5↔2.4 GHz
-  (el router no siempre reenvía el M-SEARCH). `discover_renderer()` cae a
-  **unicast** contra `http://<ip>:9197/dmr`, usando `METRICS["tv_ip"]` (se llena
-  cuando el TV pide media) o el hint `DLNA_TV_IP`. Para castear en arranque frío
-  (sin que el TV haya pedido nada aún) hace falta `DLNA_TV_IP`.
+  (el router no siempre reenvía el M-SEARCH). `discover_renderer()` cae en cascada:
+  M-SEARCH → unicast a IPs conocidas (`METRICS["tv_ip"]`, hint `DLNA_TV_IP`, cache
+  `.dlna_tv_ip`) → **`autodiscover_tv_ip()`** que escanea la subred en paralelo
+  buscando `:9197/dmr` y cachea la IP hallada. Así el arranque en frío ya no
+  necesita `DLNA_TV_IP` (queda como atajo opcional).
 
 - **Estimador de posición `contig_end`.** Sin control DMC, la posición se estima
   con el "borde contiguo" de bytes servidos desde 0. NO usar el máximo offset:

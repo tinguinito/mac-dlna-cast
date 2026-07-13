@@ -36,17 +36,17 @@ segundos, una sola vez) y arranca justo ahí.
 
 ### c) Una CARPETA como biblioteca (recomendado)
 ```bash
-DLNA_TV_IP=192.168.1.50 python3 server_dlna.py ~/Movies
+python3 server_dlna.py ~/Movies
 ```
 Escanea todos los videos de la carpeta (y subcarpetas) y los deja
 **elegibles desde el HUD**. Sirve el primero al arrancar; desde el navegador
 eliges y reproduces cualquiera.
 
-> **`DLNA_TV_IP`** (la IP de tu TV) es el "atajo" para el control: el
-> descubrimiento por multicast falla seguido entre bandas 5↔2.4 GHz, así que el
-> server va **directo** a esa IP. Sin esta variable, el control (play/seek/
-> volumen) recién funciona cuando el TV empieza a pedir el video. La IP del TV la
-> ves en el HUD (panel OBJETIVO) o en *Config → Red* del televisor.
+> **El TV se detecta solo.** El server escanea la red, encuentra tu televisor
+> (probando el puerto del MediaRenderer en cada IP, en paralelo) y **recuerda su
+> IP** para la próxima. Si quieres forzarlo o acelerar el arranque en frío,
+> pásale la IP como atajo opcional:
+> `DLNA_TV_IP=192.168.1.50 python3 server_dlna.py ~/Movies`.
 
 > **Truco:** para dejarlo corriendo aunque cierres la terminal, antepón `nohup` y
 > añade `&` al final:

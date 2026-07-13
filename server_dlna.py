@@ -50,6 +50,7 @@ SSDP_ADDR = "239.255.255.250"
 SSDP_PORT = 1900
 CHUNK = 256 * 1024  # 256 KB por bloque al transmitir
 HUD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hud.html")
+TV_IP_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_ip")
 
 VIDEO_EXTS = (".mp4", ".m4v", ".mkv", ".mov", ".avi", ".ts")
 MIME_MAP = {
@@ -564,6 +565,51 @@ def _soap_call(url, service, action, inner_xml, timeout=6):
         return r.read().decode("utf-8", "ignore")
 
 
+def _read_tv_cache():
+    try:
+        with open(TV_IP_CACHE) as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def _write_tv_cache(ip):
+    try:
+        with open(TV_IP_CACHE, "w") as f:
+            f.write(ip)
+    except OSError:
+        pass
+
+
+def autodiscover_tv_ip(timeout=0.4):
+    """Escanea la subred local buscando el MediaRenderer del TV (puerto 9197),
+    en paralelo. Así no hace falta pasar la IP a mano. Devuelve la IP o None."""
+    parts = STATE["ip"].split(".")
+    if len(parts) != 4:
+        return None
+    base = ".".join(parts[:3])
+    found = []
+    lock = threading.Lock()
+
+    def probe(ip):
+        try:
+            data = urllib.request.urlopen("http://%s:9197/dmr" % ip,
+                                          timeout=timeout).read(800).decode("utf-8", "ignore")
+            if "MediaRenderer" in data:
+                with lock:
+                    found.append(ip)
+        except Exception:
+            pass
+
+    threads = [threading.Thread(target=probe, args=("%s.%d" % (base, i),), daemon=True)
+               for i in range(1, 255)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout + 0.3)
+    return found[0] if found else None
+
+
 def discover_renderer(timeout=3):
     """Encuentra el controlURL de AVTransport del TV (MediaRenderer). Cachea."""
     if TV_CTRL["control_url"]:
@@ -597,12 +643,18 @@ def discover_renderer(timeout=3):
     # 1) LOCATION por M-SEARCH multicast (poco fiable entre bandas 5/2.4 GHz).
     if loc and _process_desc(loc):
         return TV_CTRL["control_url"]
-    # 2) Fallback UNICAST a IPs conocidas del TV (el multicast falla seguido; el
-    #    unicast al puerto del MediaRenderer Samsung sí llega). tv_ip se llena
-    #    cuando el TV pide media; DLNA_TV_IP es un hint opcional para arranque frío.
-    for ip in dict.fromkeys([x for x in (tv_ip, os.environ.get("DLNA_TV_IP")) if x]):
+    # 2) Fallback UNICAST a IPs conocidas: tv_ip (se llena cuando el TV pide media),
+    #    el hint DLNA_TV_IP, y la última IP cacheada de una corrida anterior.
+    for ip in dict.fromkeys([x for x in (tv_ip, os.environ.get("DLNA_TV_IP"),
+                                         _read_tv_cache()) if x]):
         if _process_desc("http://%s:9197/dmr" % ip):
+            _write_tv_cache(ip)
             return TV_CTRL["control_url"]
+    # 3) Auto-detección: escanea la subred y encuentra el TV solo (sin IP en duro).
+    ip = autodiscover_tv_ip()
+    if ip and _process_desc("http://%s:9197/dmr" % ip):
+        _write_tv_cache(ip)
+        return TV_CTRL["control_url"]
     return None
 
 
