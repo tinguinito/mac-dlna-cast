@@ -1,0 +1,9 @@
+# Temporales del recorte con ffmpeg
+.dlna_seek_*.mp4
+# Logs
+*.log
+server.log
+# Sistema / Python
+.DS_Store
+__pycache__/
+*.pyc

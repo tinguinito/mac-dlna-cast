@@ -1,0 +1,226 @@
+<title>Mac DLNA Cast — Manual de arranque · MARK III</title>
+<style>
+  :root{
+    --bg0:#05080f; --bg1:#0a0f1a; --panel:rgba(10,18,32,.72);
+    --cyan:#4fd2ff; --gold:#ffd447; --red:#ff4536; --green:#54ffb0;
+    --dim:#5f7690; --txt:#cfe9ff;
+    --line:rgba(79,210,255,.18);
+    --mono:"SF Mono","Segoe UI Mono","Roboto Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(79,210,255,.10), transparent 60%),
+      radial-gradient(140% 120% at 50% 120%, rgba(255,69,54,.06), transparent 55%),
+      radial-gradient(100% 100% at 50% 50%, var(--bg1), var(--bg0) 80%);
+    color:var(--txt); font-family:var(--mono); letter-spacing:.02em;
+    min-height:100vh; overflow-x:hidden; padding:32px 16px; line-height:1.65;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:46px 46px; opacity:.22;
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 30%,#000 25%,transparent 82%);
+    mask-image:radial-gradient(120% 90% at 50% 30%,#000 25%,transparent 82%);
+  }
+  .wrap{position:relative;z-index:1;max-width:860px;margin:0 auto}
+
+  /* Hero */
+  .hero{text-align:center;padding:20px 0 34px}
+  .hero .eyebrow{font-size:11px;letter-spacing:.42em;color:var(--dim);text-transform:uppercase}
+  .hero h1{
+    font-size:clamp(26px,5vw,44px);letter-spacing:.14em;color:var(--gold);
+    text-transform:uppercase;text-wrap:balance;margin:12px 0 6px;
+    text-shadow:0 0 22px rgba(255,212,71,.35);
+  }
+  .hero .sub{font-size:13px;color:var(--dim);letter-spacing:.28em;text-transform:uppercase}
+  .hero .tag{
+    display:inline-block;margin-top:18px;font-size:12px;color:var(--txt);
+    max-width:560px;line-height:1.7;letter-spacing:.02em;
+  }
+  .hero .mk{color:var(--cyan)}
+
+  /* Panels with brackets */
+  .panel{
+    position:relative;background:var(--panel);border:1px solid var(--line);
+    border-radius:7px;padding:22px 24px;margin-bottom:22px;backdrop-filter:blur(2px);
+  }
+  .panel>.br{position:absolute;width:15px;height:15px;border-color:var(--cyan);
+    border-style:solid;border-width:0;filter:drop-shadow(0 0 4px rgba(79,210,255,.7))}
+  .br.tl{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px}
+  .br.tr{top:-1px;right:-1px;border-top-width:2px;border-right-width:2px}
+  .br.bl{bottom:-1px;left:-1px;border-bottom-width:2px;border-left-width:2px}
+  .br.br2{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px}
+
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .num{
+    font-size:12px;color:var(--bg0);background:var(--cyan);
+    width:30px;height:30px;border-radius:5px;display:grid;place-items:center;
+    font-weight:700;box-shadow:0 0 14px rgba(79,210,255,.6);flex:none;letter-spacing:0;
+  }
+  .head h2{font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan)}
+  .head .h-sub{font-size:11px;color:var(--dim);letter-spacing:.14em;margin-top:2px}
+  .lead{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);
+    display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .lead::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+
+  p{font-size:13.5px;color:var(--txt);margin:6px 0 12px;letter-spacing:.01em}
+  .muted{color:var(--dim)}
+  b,strong{color:var(--gold);font-weight:600}
+  .cyan{color:var(--cyan)}
+
+  /* Command block */
+  .cmd{
+    position:relative;background:#04070d;border:1px solid var(--line);border-left:3px solid var(--cyan);
+    border-radius:5px;padding:14px 46px 14px 16px;margin:10px 0 6px;
+    font-size:13px;color:var(--green);white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere;
+  }
+  .cmd .p{color:var(--dim);user-select:none}
+  .copy{
+    position:absolute;top:8px;right:8px;background:rgba(79,210,255,.10);
+    border:1px solid var(--line);color:var(--cyan);font-family:var(--mono);
+    font-size:10px;letter-spacing:.1em;padding:5px 9px;border-radius:4px;cursor:pointer;
+    text-transform:uppercase;transition:.15s;
+  }
+  .copy:hover{background:rgba(79,210,255,.22)}
+  .copy.done{color:var(--green);border-color:var(--green)}
+  .cap{font-size:11px;color:var(--dim);margin:2px 0 16px;letter-spacing:.04em}
+
+  /* Variant labels */
+  .vtag{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);
+    margin:16px 0 2px;display:block}
+
+  /* Callout */
+  .note{
+    display:flex;gap:12px;background:rgba(255,212,71,.06);border:1px solid rgba(255,212,71,.22);
+    border-radius:5px;padding:12px 14px;margin:12px 0;font-size:12.5px;line-height:1.6;
+  }
+  .note.crit{background:rgba(255,69,54,.06);border-color:rgba(255,69,54,.25)}
+  .note.ok{background:rgba(84,255,176,.05);border-color:rgba(84,255,176,.22)}
+  .note .ic{flex:none;font-size:15px;line-height:1.4}
+
+  /* Troubleshoot rows */
+  .tr{display:grid;grid-template-columns:1fr 1.4fr;gap:10px 18px;padding:11px 0;
+    border-bottom:1px dashed rgba(79,210,255,.12);font-size:12.5px;align-items:start}
+  .tr:last-child{border-bottom:0}
+  .tr .sym{color:var(--txt)}
+  .tr .fix{color:var(--dim)}
+  .tr .fix b{color:var(--green);font-weight:600}
+  @media(max-width:560px){.tr{grid-template-columns:1fr}}
+
+  .foot{text-align:center;color:var(--dim);font-size:11px;letter-spacing:.14em;
+    padding:14px 0 6px;text-transform:uppercase}
+  .foot .jarvis{color:var(--cyan);font-style:italic;text-transform:none;letter-spacing:.02em;
+    font-size:12px;margin-top:8px;display:block}
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Stark Industries · Home Cinema Division</div>
+    <h1>Mac DLNA Cast</h1>
+    <div class="sub">Manual de arranque · <span class="mk">Mark III</span></div>
+    <div class="tag">Reproduce cualquier video de tu Mac en el TV Samsung por WiFi — sin cables,
+    sin AirPlay — y contrólalo desde un HUD en el navegador. Tres pasos y estás en vuelo.</div>
+  </div>
+
+  <!-- Requisitos -->
+  <div class="panel">
+    <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="lead">Antes de despegar</div>
+    <p><b>Python 3</b> — ya viene en tu Mac. Sin librerías extra, sin <span class="muted">pip install</span>.</p>
+    <p><b>ffmpeg</b> <span class="muted">(opcional)</span> — solo si quieres arrancar una peli en un minuto exacto.
+    Ya lo tienes instalado.</p>
+    <p><b>El Mac en WiFi de 5 GHz.</b> Es la diferencia entre una peli fluida y una que se recarga.
+    El TV puede quedarse en 2.4 GHz — no importa.</p>
+  </div>
+
+  <!-- Paso 1 -->
+  <div class="panel">
+    <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="head">
+      <div class="num">01</div>
+      <div><h2>Enciende el motor</h2><div class="h-sub">Levanta el server desde la carpeta del proyecto</div></div>
+    </div>
+
+    <span class="vtag">▸ Modo biblioteca (recomendado)</span>
+    <p class="muted" style="margin:4px 0 6px">Escanea una carpeta entera y te deja elegir cualquier peli desde el HUD.</p>
+    <div class="cmd"><span class="p">$ </span>DLNA_TV_IP=192.168.1.50 python3 server_dlna.py ~/Movies<button class="copy" data-cmd="DLNA_TV_IP=192.168.1.50 python3 server_dlna.py ~/Movies">Copiar</button></div>
+    <div class="cap"><span class="cyan">DLNA_TV_IP</span> es la IP de tu TV — el atajo para que el control responda al instante.</div>
+
+    <span class="vtag">▸ Una sola película</span>
+    <div class="cmd"><span class="p">$ </span>python3 server_dlna.py "/ruta/a/tu/pelicula.mp4"<button class="copy" data-cmd='python3 server_dlna.py "/ruta/a/tu/pelicula.mp4"'>Copiar</button></div>
+
+    <span class="vtag">▸ Arrancar en un minuto exacto</span>
+    <div class="cmd"><span class="p">$ </span>python3 server_dlna.py "/ruta/pelicula.mp4" --start 22:00<button class="copy" data-cmd='python3 server_dlna.py "/ruta/pelicula.mp4" --start 22:00'>Copiar</button></div>
+    <div class="cap"><span class="cyan">--start</span> acepta MM:SS, HH:MM:SS o segundos. Recorta con ffmpeg y salta directo ahí.</div>
+
+    <div class="note ok"><span class="ic">✓</span><div>Al arrancar, la consola te muestra la <b>IP</b>, el <b>puerto</b> y la <b>URL del HUD</b>. Anótala — la usas en el paso 2.</div></div>
+  </div>
+
+  <!-- Paso 2 -->
+  <div class="panel">
+    <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="head">
+      <div class="num">02</div>
+      <div><h2>Abre el HUD</h2><div class="h-sub">Tu cabina de mando, en el navegador</div></div>
+    </div>
+    <p>En el Mac <span class="muted">(o en tu iPhone, si está en la misma red)</span> abre:</p>
+    <div class="cmd">http://&lt;IP-del-Mac&gt;:8200/hud<button class="copy" data-cmd="http://IP-del-Mac:8200/hud">Copiar</button></div>
+    <p class="muted">Ahí tienes el reactor con la velocidad real, el gráfico de transferencia, la
+    posición en vivo del TV, la biblioteca para elegir peli, y los controles de play/pausa/salto.
+    Cada panel tiene un <span class="cyan">ⓘ</span> que te explica qué es.</p>
+  </div>
+
+  <!-- Paso 3 -->
+  <div class="panel">
+    <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="head">
+      <div class="num">03</div>
+      <div><h2>Manda al televisor</h2><div class="h-sub">Dos caminos, tú eliges</div></div>
+    </div>
+    <p><b>Desde el HUD</b> — en el panel <span class="cyan">BIBLIOTECA</span>, un click en cualquier
+    peli y aparece en el TV. El control (tiempo, saltos, pausa) queda vivo al toque.</p>
+    <p><b>Desde el TV</b> — pulsa <b>Source / Fuente</b>, busca <b>"Mac DLNA Cast"</b>, entra y reproduce.
+    El TV lo lee como un pendrive por red.</p>
+    <div class="note"><span class="ic">🔊</span><div>El <b>volumen</b> se ajusta con el control de tu barra Philips: el audio sale por HDMI-ARC y no viaja por la red.</div></div>
+  </div>
+
+  <!-- Troubleshoot -->
+  <div class="panel">
+    <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="lead">Si algo se tuerce</div>
+    <div class="tr"><div class="sym">Se recarga / buffering seguido</div><div class="fix">Pasa el <b>Mac a 5 GHz</b>. Es airtime de WiFi, no tu equipo. Fue la causa raíz.</div></div>
+    <div class="tr"><div class="sym">No aparece en <i>Source</i></div><div class="fix">Sal y vuelve a entrar a <b>Source</b>; verifica que Mac y TV estén en la misma red.</div></div>
+    <div class="tr"><div class="sym">Dos "Mac DLNA Cast"</div><div class="fix">Uno es fantasma de un arranque previo. El TV lo limpia solo en <b>~30 min</b>.</div></div>
+    <div class="tr"><div class="sym">El seek tarda unos segundos</div><div class="fix">Normal: el TV <b>re-buffera</b> desde la nueva posición.</div></div>
+    <div class="tr"><div class="sym">"Navegador no disponible"</div><div class="fix">Arranca el server en <b>modo biblioteca</b> (con una carpeta, ver paso 01).</div></div>
+  </div>
+
+  <!-- Stop -->
+  <div class="panel">
+    <span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="lead">Apagar</div>
+    <p>En la terminal donde corre el server: <b>Ctrl + C</b>. Limpia sus temporales y se despide.</p>
+  </div>
+
+  <div class="foot">
+    Servidor casero en Python puro · Sin dependencias · Ver server_dlna.py
+    <span class="jarvis">"Sistemas listos, señor. Que disfrute la función." — J.A.R.V.I.S.</span>
+  </div>
+
+</div>
+
+<script>
+  document.querySelectorAll(".copy").forEach(function(b){
+    b.addEventListener("click", function(){
+      var t = b.getAttribute("data-cmd");
+      navigator.clipboard && navigator.clipboard.writeText(t).then(function(){
+        var old = b.textContent; b.textContent = "Copiado"; b.classList.add("done");
+        setTimeout(function(){ b.textContent = old; b.classList.remove("done"); }, 1400);
+      });
+    });
+  });
+</script>

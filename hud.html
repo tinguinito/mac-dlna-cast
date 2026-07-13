@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mac DLNA Cast — HUD</title>
+<style>
+  :root{
+    --bg0:#05080f; --bg1:#0a0f1a;
+    --cyan:#4fd2ff; --gold:#ffd447; --red:#ff4536; --green:#54ffb0;
+    --dim:#5f7690; --txt:#bfe6ff;
+    --line:rgba(79,210,255,.18);
+    --mono:"SF Mono","Segoe UI Mono","Roboto Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:"Segoe UI",-apple-system,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(79,210,255,.10), transparent 60%),
+      radial-gradient(140% 120% at 50% 120%, rgba(255,69,54,.06), transparent 55%),
+      radial-gradient(100% 100% at 50% 50%, var(--bg1), var(--bg0) 80%);
+    color:var(--txt);
+    font-family:var(--mono);
+    letter-spacing:.06em;
+    min-height:100%;
+    overflow-x:hidden;
+    padding:14px;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(var(--line) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:44px 44px;
+    opacity:.25;
+    mask-image:radial-gradient(120% 100% at 50% 40%,#000 30%,transparent 85%);
+    -webkit-mask-image:radial-gradient(120% 100% at 50% 40%,#000 30%,transparent 85%);
+  }
+  .wrap{position:relative;z-index:1;max-width:1500px;margin:0 auto}
+
+  /* ---- HUD panel with corner brackets ---- */
+  .panel{
+    position:relative;
+    background:linear-gradient(180deg, rgba(10,18,32,.72), rgba(6,10,18,.72));
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:16px 18px;
+    backdrop-filter:blur(2px);
+  }
+  .panel::before,.panel::after,
+  .panel>.br1,.panel>.br2{
+    content:"";position:absolute;width:16px;height:16px;pointer-events:none;
+    border-color:var(--cyan);border-style:solid;border-width:0;
+    filter:drop-shadow(0 0 4px rgba(79,210,255,.7));
+  }
+  .panel::before{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px}
+  .panel::after{top:-1px;right:-1px;border-top-width:2px;border-right-width:2px}
+  .panel>.br1{bottom:-1px;left:-1px;border-bottom-width:2px;border-left-width:2px}
+  .panel>.br2{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px}
+
+  .label{
+    font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.22em;
+    margin-bottom:10px;display:flex;align-items:center;gap:8px;
+  }
+  .label::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  .glow{text-shadow:0 0 8px currentColor}
+
+  /* ---- Header ---- */
+  header{
+    display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;
+    padding:12px 18px;margin-bottom:14px;
+  }
+  .brand{font-size:15px;letter-spacing:.28em;color:var(--gold);text-transform:uppercase}
+  .brand small{display:block;font-size:9px;color:var(--dim);letter-spacing:.34em;margin-top:3px}
+  .hstat{margin-left:auto;display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
+  .kv{display:flex;flex-direction:column;line-height:1.2}
+  .kv .k{font-size:9px;color:var(--dim);letter-spacing:.18em;text-transform:uppercase}
+  .kv .v{font-size:15px;color:var(--txt)}
+  .status-chip{
+    font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    padding:7px 14px;border-radius:4px;border:1px solid currentColor;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .status-chip .dot{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;animation:blink 1.6s infinite}
+  .s-stream{color:var(--green)}
+  .s-idle{color:var(--gold)}
+  .s-lost{color:var(--red)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* ---- Grid ---- */
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(12,1fr)}
+  .c-reactor{grid-column:span 4}
+  .c-transfer{grid-column:span 8}
+  .c-target{grid-column:span 6}
+  .c-server{grid-column:span 6}
+  @media(max-width:1000px){
+    .c-reactor,.c-transfer,.c-target,.c-server{grid-column:span 12}
+  }
+
+  /* ---- Arc reactor ---- */
+  .reactor-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+  .reactor{position:relative;width:220px;max-width:80vw;aspect-ratio:1/1}
+  .reactor svg{width:100%;height:100%;display:block}
+  .reactor .core-txt{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;
+  }
+  .reactor .mbps{font-size:34px;color:var(--cyan);text-shadow:0 0 14px rgba(79,210,255,.9)}
+  .reactor .mbps small{font-size:12px;color:var(--dim);display:block;letter-spacing:.2em;text-align:center;margin-top:2px}
+
+  .gauge-row{width:100%}
+  .gauge-track{height:12px;border-radius:8px;background:rgba(79,210,255,.09);border:1px solid var(--line);overflow:hidden;position:relative}
+  .gauge-fill{height:100%;width:0%;background:linear-gradient(90deg,#1c86b0,var(--cyan));box-shadow:0 0 12px rgba(79,210,255,.8);transition:width .5s ease}
+  .gauge-peak{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--gold);box-shadow:0 0 8px var(--gold)}
+  .gauge-legend{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:.14em}
+  .gauge-legend b{color:var(--gold)}
+
+  /* ---- Transfer canvas ---- */
+  .canvas-box{position:relative;width:100%;height:230px}
+  canvas{width:100%;height:100%;display:block}
+  .cv-axis{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);letter-spacing:.16em;margin-top:6px}
+  .cv-badges{position:absolute;top:6px;right:8px;display:flex;gap:10px;font-size:10px;letter-spacing:.14em}
+  .cv-badges span{color:var(--dim)}
+  .cv-badges b{color:var(--cyan)}
+  .cv-badges .pk b{color:var(--gold)}
+
+  /* ---- Progress ---- */
+
+  /* ---- Target / Server rows ---- */
+  .rows{display:flex;flex-direction:column;gap:9px}
+  .row{display:flex;justify-content:space-between;gap:12px;font-size:13px;align-items:center;padding-bottom:8px;border-bottom:1px dashed rgba(79,210,255,.10)}
+  .row:last-child{border-bottom:0;padding-bottom:0}
+  .row .rk{color:var(--dim);font-size:10px;letter-spacing:.18em;text-transform:uppercase;white-space:nowrap}
+  .row .rv{color:var(--txt);text-align:right;word-break:break-word;overflow-wrap:anywhere}
+  .ok{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--gold)}
+
+  .vital{display:flex;align-items:center;gap:12px;margin-top:4px}
+  .heart{width:16px;height:16px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+  .heart.beat{animation:beat .9s infinite}
+  .heart.dead{background:var(--red);box-shadow:0 0 10px var(--red);animation:none}
+  @keyframes beat{0%,100%{transform:scale(1);opacity:1}30%{transform:scale(1.5);opacity:.55}}
+  .vital .ping{font-size:20px;color:var(--green)}
+  .vital .ping.dead{color:var(--red)}
+  .vital .ping small{font-size:10px;color:var(--dim);letter-spacing:.16em}
+
+  .conn-big{font-size:18px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px}
+
+  /* ---- Control MARK II ---- */
+  .c-control{grid-column:span 12}
+  .ctl-top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 22px;margin-bottom:12px}
+  .ctl-state{
+    font-size:15px;letter-spacing:.2em;text-transform:uppercase;
+    padding:7px 14px;border-radius:4px;border:1px solid currentColor;display:inline-flex;align-items:center;gap:9px;
+  }
+  .ctl-state .dot{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+  .st-play{color:var(--green)} .st-pause{color:var(--gold)}
+  .st-stop{color:var(--red)} .st-none{color:var(--dim)}
+  .st-trans{color:var(--cyan)} .st-trans .dot{animation:blink 1s infinite}
+  .ctl-note{font-size:10px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+  .ctl-src{font-size:10px;color:var(--dim);letter-spacing:.16em;margin-left:auto;text-transform:uppercase}
+
+  .scrub{position:relative;height:22px;border-radius:11px;background:rgba(79,210,255,.08);border:1px solid var(--line);overflow:hidden;cursor:pointer;user-select:none}
+  .scrub-fill{position:absolute;top:0;left:0;bottom:0;width:0%;background:linear-gradient(90deg,#1c86b0,var(--cyan));box-shadow:0 0 14px rgba(79,210,255,.6);transition:width .4s ease;pointer-events:none}
+  .scrub-knob{position:absolute;top:50%;left:0%;width:14px;height:14px;border-radius:50%;background:#dff6ff;box-shadow:0 0 12px rgba(79,210,255,1);transform:translate(-50%,-50%);pointer-events:none;transition:left .4s ease}
+  .scrub-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 14px;align-items:baseline;margin:2px 0 10px}
+  .scrub-time{font-size:26px;color:var(--txt);letter-spacing:.08em} .scrub-time b{color:var(--cyan);text-shadow:0 0 10px rgba(79,210,255,.55)}
+  .scrub-time .sep{color:var(--dim);margin:0 4px}
+  .scrub-pct{font-size:26px;color:var(--gold);text-shadow:0 0 10px rgba(255,212,71,.5)}
+  .scrub-seeking{color:var(--gold);font-size:12px;letter-spacing:.16em}
+  .scrub-foot{display:flex;justify-content:space-between;gap:12px;align-items:baseline;min-height:16px;margin-top:8px}
+  .scrub-file{font-size:10px;color:var(--dim);letter-spacing:.1em;text-align:right;word-break:break-word;overflow-wrap:anywhere;margin-left:auto}
+  .audio-note{margin-top:14px;padding-top:12px;border-top:1px dashed rgba(79,210,255,.12);font-size:10px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+
+  .ctl-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
+  .btn{
+    font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--cyan);background:rgba(79,210,255,.06);border:1px solid var(--line);
+    padding:9px 14px;border-radius:4px;cursor:pointer;transition:all .15s ease;
+  }
+  .btn:hover{background:rgba(79,210,255,.16);box-shadow:0 0 12px rgba(79,210,255,.4);color:#dff6ff}
+  .btn:active{transform:translateY(1px)}
+  .btn.gold{color:var(--gold);border-color:rgba(255,212,71,.3)}
+  .btn.gold:hover{background:rgba(255,212,71,.14);box-shadow:0 0 12px rgba(255,212,71,.4)}
+  .btn.red{color:var(--red);border-color:rgba(255,69,54,.35)}
+  .btn.red:hover{background:rgba(255,69,54,.14);box-shadow:0 0 12px rgba(255,69,54,.4)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
+  .btn-grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .grp-sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+  .goto{display:flex;gap:6px;align-items:center}
+  .goto input{
+    font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--txt);
+    background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:4px;
+    padding:8px 10px;width:82px;text-align:center;
+  }
+  .goto input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 8px rgba(79,210,255,.4)}
+  .goto label{font-size:10px;color:var(--dim);letter-spacing:.16em}
+
+  /* ---- Biblioteca ---- */
+  .lib-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:12px}
+  .lib-root{font-size:11px;color:var(--cyan);letter-spacing:.08em;word-break:break-all;overflow-wrap:anywhere;opacity:.9;flex:1;min-width:0}
+  .browser{border:1px solid var(--line);border-radius:5px;background:rgba(0,0,0,.28);padding:10px;margin-bottom:12px}
+  .browser-bar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}
+  .browser-path{font-size:11px;color:var(--gold);letter-spacing:.06em;word-break:break-all;overflow-wrap:anywhere;flex:1;min-width:0}
+  .browser-unavail{font-size:11px;color:var(--red);letter-spacing:.12em;text-transform:uppercase;padding:6px 0}
+  .browser-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;overflow-x:hidden;padding-right:4px}
+  .browser-item{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:8px 10px;border:1px solid var(--line);border-radius:4px;cursor:pointer;
+    background:rgba(79,210,255,.03);transition:all .12s ease;font-size:12px;
+  }
+  .browser-item:hover{background:rgba(79,210,255,.12);box-shadow:0 0 8px rgba(79,210,255,.25)}
+  .browser-item .bn{color:var(--txt);word-break:break-word;overflow-wrap:anywhere}
+  .browser-item .bv{color:var(--dim);font-size:10px;letter-spacing:.12em;white-space:nowrap}
+  .browser-item.up{color:var(--cyan);border-style:dashed}
+  .browser-item.up .bn{color:var(--cyan)}
+
+
+  .lib-list{display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;overflow-x:hidden;padding-right:4px}
+  .lib-item{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:10px 12px;border:1px solid var(--line);border-radius:4px;cursor:pointer;
+    background:rgba(79,210,255,.04);transition:all .15s ease;
+  }
+  .lib-item:hover{background:rgba(79,210,255,.12);box-shadow:0 0 10px rgba(79,210,255,.25)}
+  .lib-item .lt{font-size:13px;color:var(--txt);word-break:break-word;overflow-wrap:anywhere}
+  .lib-item .lz{font-size:11px;color:var(--dim);letter-spacing:.12em;white-space:nowrap}
+  .lib-item.current{border-color:var(--cyan);background:rgba(79,210,255,.14);box-shadow:0 0 12px rgba(79,210,255,.35)}
+  .lib-item.current .lt{color:var(--cyan);text-shadow:0 0 8px rgba(79,210,255,.5)}
+  .lib-badge{font-size:9px;color:var(--cyan);border:1px solid var(--cyan);border-radius:3px;padding:2px 6px;letter-spacing:.16em;white-space:nowrap;box-shadow:0 0 8px rgba(79,210,255,.4)}
+  .lib-empty{font-size:11px;color:var(--gold);letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+
+  /* ---- Info icon + popover ---- */
+  .label .info{margin-left:2px}
+  .lib-head .info{margin-left:2px}
+  .info{
+    flex:0 0 auto;width:17px;height:17px;border-radius:50%;
+    border:1px solid var(--cyan);background:rgba(79,210,255,.08);color:var(--cyan);
+    font-family:var(--sans);font-size:11px;font-weight:700;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;
+    cursor:help;padding:0;letter-spacing:0;text-transform:none;
+    box-shadow:0 0 6px rgba(79,210,255,.35);transition:background .15s ease,box-shadow .15s ease;
+  }
+  .info:hover,.info[aria-expanded="true"]{background:rgba(79,210,255,.22);box-shadow:0 0 10px rgba(79,210,255,.65)}
+  .info:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+  .popover{
+    position:fixed;z-index:60;max-width:320px;width:max-content;
+    background:rgba(8,14,24,.97);border:1px solid var(--cyan);border-radius:6px;
+    padding:14px 16px;color:#d7ecff;
+    font-family:var(--sans);font-size:13.5px;line-height:1.55;letter-spacing:.01em;
+    text-transform:none;
+    box-shadow:0 0 22px rgba(79,210,255,.3),0 8px 30px rgba(0,0,0,.55);
+    opacity:0;visibility:hidden;transform:translateY(-4px);
+    transition:opacity .16s ease,transform .16s ease,visibility .16s;
+    pointer-events:none;
+  }
+  .popover.open{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto}
+  /* corner brackets, same visual language */
+  .popover::before,.popover::after{
+    content:"";position:absolute;width:11px;height:11px;border:solid var(--cyan);border-width:0;
+    filter:drop-shadow(0 0 3px rgba(79,210,255,.7));
+  }
+  .popover::before{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px}
+  .popover::after{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px}
+  @media(prefers-reduced-motion:reduce){
+    .popover{transition:none;transform:none}
+    .popover.open{transform:none}
+  }
+  @media(max-width:520px){
+    .popover{max-width:none;width:auto;left:12px !important;right:12px !important}
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+    background:linear-gradient(180deg,rgba(10,20,34,.96),rgba(6,10,18,.96));
+    border:1px solid var(--cyan);color:var(--txt);
+    padding:11px 20px;border-radius:5px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    box-shadow:0 0 20px rgba(79,210,255,.35);z-index:50;
+    opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;max-width:90vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{border-color:var(--red);box-shadow:0 0 20px rgba(255,69,54,.4);color:#ffd0cb}
+
+  footer{text-align:center;font-size:9px;color:var(--dim);letter-spacing:.28em;margin-top:16px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="panel">
+    <span class="br1"></span><span class="br2"></span>
+    <div class="brand">STARK INDUSTRIES · MARK III<small>DLNA STREAM MONITOR</small></div>
+    <div class="hstat">
+      <div class="kv"><span class="k">Uptime</span><span class="v" id="h-uptime">—</span></div>
+      <div class="kv"><span class="k">Reloj</span><span class="v" id="h-clock">—</span></div>
+      <div class="status-chip s-idle" id="h-status"><span class="dot"></span><span id="h-status-txt">INICIANDO</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- REACTOR -->
+    <div class="panel c-reactor">
+      <span class="br1"></span><span class="br2"></span>
+      <div class="label">REACTOR<button class="info" type="button" aria-label="Qué es esto" aria-expanded="false" data-info="El pulso del sistema. Es la velocidad REAL a la que tu Mac le manda el video al TV, en Mbps (megabits por segundo). El anillo late más rápido cuando fluyen más datos. Dato: tu película necesita apenas ~2 Mbps; si ves más, el TV va sobrado, llenando su buffer.">i</button></div>
+      <div class="reactor-wrap">
+        <div class="reactor">
+          <svg viewBox="0 0 200 200" id="reactor-svg">
+            <defs>
+              <radialGradient id="rg" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#bff0ff"/>
+                <stop offset="45%" stop-color="#4fd2ff"/>
+                <stop offset="100%" stop-color="#0d3a52"/>
+              </radialGradient>
+            </defs>
+            <circle cx="100" cy="100" r="92" fill="none" stroke="rgba(79,210,255,.15)" stroke-width="2"/>
+            <g id="r-ring2" style="transform-origin:100px 100px">
+              <circle cx="100" cy="100" r="78" fill="none" stroke="rgba(79,210,255,.35)" stroke-width="1.5" stroke-dasharray="6 10"/>
+            </g>
+            <g id="r-ring1" style="transform-origin:100px 100px">
+              <circle cx="100" cy="100" r="62" fill="none" stroke="rgba(79,210,255,.6)" stroke-width="2" stroke-dasharray="3 7"/>
+            </g>
+            <!-- coil segments -->
+            <g id="r-coils" style="transform-origin:100px 100px"></g>
+            <circle id="r-glow" cx="100" cy="100" r="40" fill="url(#rg)" opacity=".85"/>
+            <circle cx="100" cy="100" r="30" fill="none" stroke="#bff0ff" stroke-width="2" opacity=".8"/>
+          </svg>
+          <div class="core-txt">
+            <div class="mbps"><span id="r-mbps">—</span><small>MBPS</small></div>
+          </div>
+        </div>
+
+        <div class="gauge-row">
+          <div class="gauge-track">
+            <div class="gauge-fill" id="g-fill"></div>
+            <div class="gauge-peak" id="g-peak" style="left:0%"></div>
+          </div>
+          <div class="gauge-legend">
+            <span>AHORA <b id="g-now" style="color:var(--cyan)">—</b></span>
+            <span>PICO <b id="g-peak-txt">—</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSFER -->
+    <div class="panel c-transfer">
+      <span class="br1"></span><span class="br2"></span>
+      <div class="label">TRANSFERENCIA · ÚLTIMOS 60 s<button class="info" type="button" aria-label="Qué es esto" aria-expanded="false" data-info="La historia reciente del flujo. Cada punto es cuántos Mbps se movieron en ese segundo, de hace 60s hasta ahora. Los picos son el TV rellenando su buffer de golpe; los valles, cuando reproduce de lo que ya guardó. Sana = sube y baja sin quedarse en cero.">i</button></div>
+      <div class="canvas-box">
+        <canvas id="chart"></canvas>
+        <div class="cv-badges">
+          <span>ACT <b id="cv-now">—</b></span>
+          <span class="pk">PICO <b id="cv-peak">—</b></span>
+        </div>
+      </div>
+      <div class="cv-axis"><span>-60 s</span><span>AHORA</span></div>
+    </div>
+
+    <!-- CONSOLA DE REPRODUCCIÓN (única) -->
+    <div class="panel c-control">
+      <span class="br1"></span><span class="br2"></span>
+      <div class="label">CONSOLA DE REPRODUCCIÓN · MARK II<button class="info" type="button" aria-label="Qué es esto" aria-expanded="false" data-info="Tu mando a distancia del TV, en vivo. El tiempo y la barra son la posición REAL leída del televisor, no una estimación. Toca la barra para saltar a cualquier punto; usa play/pausa y los saltos de ±10/±30s. 'INICIAR EN TV' retoma el control si se pierde.">i</button></div>
+
+      <div class="ctl-top">
+        <span class="ctl-state st-none" id="ctl-state"><span class="dot"></span><span id="ctl-state-txt">—</span></span>
+        <span class="ctl-note" id="ctl-note" style="display:none">CONTROL NO INICIADO — PULSA INICIAR EN TV</span>
+        <span class="ctl-src" id="ctl-src">FUENTE: —</span>
+      </div>
+
+      <div class="scrub-head">
+        <div class="scrub-time"><b id="scr-cur">—</b> <span class="sep">/</span> <span id="scr-dur">—</span></div>
+        <div class="scrub-pct" id="scr-pct">—%</div>
+      </div>
+      <div class="scrub" id="scrub" role="slider" aria-label="Posición del TV" title="Click o arrastra para saltar">
+        <div class="scrub-fill" id="scr-fill"></div>
+        <div class="scrub-knob" id="scr-knob"></div>
+      </div>
+      <div class="scrub-foot">
+        <span class="scrub-seeking" id="scr-seeking" style="display:none">BUSCANDO…</span>
+        <span class="scrub-file" id="p-file">—</span>
+      </div>
+
+      <div class="ctl-actions">
+        <div class="btn-grp">
+          <button class="btn" id="b-play">▶ PLAY</button>
+          <button class="btn gold" id="b-pause">⏸ PAUSA</button>
+          <button class="btn red" id="b-stop">⏹ STOP</button>
+        </div>
+        <span class="grp-sep"></span>
+        <div class="btn-grp">
+          <button class="btn" data-jump="-30">−30 s</button>
+          <button class="btn" data-jump="-10">−10 s</button>
+          <button class="btn" data-jump="10">+10 s</button>
+          <button class="btn" data-jump="30">+30 s</button>
+        </div>
+        <span class="grp-sep"></span>
+        <div class="goto">
+          <label>IR A</label>
+          <input id="goto-input" type="text" placeholder="MM:SS" autocomplete="off">
+          <button class="btn" id="b-goto">SALTAR</button>
+        </div>
+        <span class="grp-sep"></span>
+        <button class="btn gold" id="b-cast" title="Toma el control del TV y reproduce desde el server">⧉ INICIAR EN TV</button>
+      </div>
+
+      <div class="audio-note">🔊 AUDIO POR BARRA PHILIPS (HDMI-ARC) — AJUSTA EL VOLUMEN CON SU CONTROL. NO ACCESIBLE POR RED.</div>
+    </div>
+
+    <!-- BIBLIOTECA -->
+    <div class="panel c-control">
+      <span class="br1"></span><span class="br2"></span>
+      <div class="lib-head">
+        <div class="label" style="margin-bottom:0">BIBLIOTECA<button class="info" type="button" aria-label="Qué es esto" aria-expanded="false" data-info="Tus películas listas para lanzar. Un click carga y reproduce cualquiera en el TV al instante; la que está EN PANTALLA se resalta. 'CAMBIAR CARPETA' te deja navegar tu disco y apuntar la biblioteca a otra carpeta.">i</button></div>
+        <span class="lib-root" id="lib-root" title="Carpeta actual">—</span>
+        <button class="btn" id="b-browse">CAMBIAR CARPETA</button>
+      </div>
+
+      <div class="browser" id="browser" style="display:none">
+        <div class="browser-bar">
+          <span class="browser-path" id="browser-path">—</span>
+          <div class="btn-grp">
+            <button class="btn" id="b-browse-use">✓ USAR ESTA CARPETA</button>
+            <button class="btn red" id="b-browse-close">✕ CERRAR</button>
+          </div>
+        </div>
+        <div class="browser-unavail" id="browser-unavail" style="display:none">NAVEGADOR NO DISPONIBLE</div>
+        <div class="browser-list" id="browser-list"></div>
+      </div>
+
+      <div class="lib-empty" id="lib-empty" style="display:none">BIBLIOTECA NO DISPONIBLE (ARRANCA EL SERVER CON UNA CARPETA)</div>
+      <div class="lib-list" id="lib-list"></div>
+    </div>
+
+    <!-- TARGET -->
+    <div class="panel c-target">
+      <span class="br1"></span><span class="br2"></span>
+      <div class="label">OBJETIVO · SAMSUNG TV<button class="info" type="button" aria-label="Qué es esto" aria-expanded="false" data-info="A quién le enviamos. Es tu televisor: su IP y MAC (dirección en la red), el modelo, y la SEÑAL VITAL (ping) — los milisegundos que tarda en responder. Verde y bajo = red sana; si sube o se pone rojo, hay congestión en el WiFi.">i</button></div>
+      <div class="conn-big" id="t-conn">—</div>
+      <div class="rows">
+        <div class="row"><span class="rk">IP</span><span class="rv" id="t-ip">—</span></div>
+        <div class="row"><span class="rk">MAC</span><span class="rv" id="t-mac">—</span></div>
+        <div class="row"><span class="rk">Modelo / Agente</span><span class="rv" id="t-ua">—</span></div>
+        <div class="row"><span class="rk">Último request</span><span class="rv" id="t-seen">—</span></div>
+        <div class="row">
+          <span class="rk">Señal vital · Ping</span>
+          <span class="rv">
+            <span class="vital">
+              <span class="heart beat" id="t-heart"></span>
+              <span class="ping" id="t-ping">—<small> MS</small></span>
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SERVER -->
+    <div class="panel c-server">
+      <span class="br1"></span><span class="br2"></span>
+      <div class="label">SERVIDOR<button class="info" type="button" aria-label="Qué es esto" aria-expanded="false" data-info="El motor, corriendo en tu Mac. Cuánto lleva encendido, el archivo y su tamaño, el total de datos enviados, cuántas veces te pidió algo el TV, y la dirección donde vive (IP:puerto). Es el DLNA que el TV ve como 'fuente'.">i</button></div>
+      <div class="rows">
+        <div class="row"><span class="rk">Uptime</span><span class="rv" id="s-uptime">—</span></div>
+        <div class="row"><span class="rk">Archivo</span><span class="rv" id="s-file">—</span></div>
+        <div class="row"><span class="rk">Tamaño</span><span class="rv" id="s-size">—</span></div>
+        <div class="row"><span class="rk">Duración</span><span class="rv" id="s-dur">—</span></div>
+        <div class="row"><span class="rk">Transferido</span><span class="rv" id="s-xfer">—</span></div>
+        <div class="row"><span class="rk">Requests</span><span class="rv" id="s-req">—</span></div>
+        <div class="row"><span class="rk">Endpoint</span><span class="rv" id="s-ep">—</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>MAC DLNA CAST · HUD · TELEMETRÍA EN VIVO · REFRESCO 1 s</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+(function(){
+  // ---------- helpers ----------
+  var $ = function(id){ return document.getElementById(id); };
+  function num(v){ return (typeof v === "number" && isFinite(v)); }
+  function fnum(v, d){ return num(v) ? v.toFixed(d==null?1:d) : "—"; }
+  function txt(v){ return (v===undefined||v===null||v==="") ? "—" : String(v); }
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+  function hhmmss(s){
+    if(!num(s)) return "—";
+    s = Math.max(0, Math.floor(s));
+    var h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+    var p=function(n){return (n<10?"0":"")+n;};
+    return p(h)+":"+p(m)+":"+p(ss);
+  }
+  // seconds -> "MM:SS" or "H:MM:SS"
+  function clock(s){
+    if(!num(s)) return "—";
+    s=Math.max(0,Math.floor(s));
+    var h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+    var p=function(n){return (n<10?"0":"")+n;};
+    return h>0 ? (h+":"+p(m)+":"+p(ss)) : (m+":"+p(ss));
+  }
+  // "MM:SS" | "HH:MM:SS" | "123" -> seconds (or null)
+  function parseTime(str){
+    if(str==null) return null;
+    str=String(str).trim();
+    if(str==="") return null;
+    if(/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+    var parts=str.split(":").map(function(x){return x.trim();});
+    if(parts.some(function(x){return x===""||isNaN(Number(x));})) return null;
+    parts=parts.map(Number);
+    var s=0;
+    for(var i=0;i<parts.length;i++) s=s*60+parts[i];
+    return s;
+  }
+  // toast
+  var toastTimer=null;
+  function toast(msg,isErr){
+    var t=$("toast");
+    t.textContent=msg;
+    t.className="toast show"+(isErr?" err":"");
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){ t.className="toast"+(isErr?" err":""); }, 2800);
+  }
+
+  // ---------- state ----------
+  var state = null;         // last good stats
+  var connected = false;    // last fetch ok
+  var history = new Array(60).fill(0);
+  var displayMbps = 0;      // smoothed for reactor
+  var lastGoodTs = 0;
+
+  // control MARK II state
+  var tvpos = null;         // last good /api/tvpos
+  var ctlAvailable = false; // endpoints respond
+  var seeking = false;      // seek in flight
+  var dragging = false;     // scrubber drag
+  var dragRatio = null;     // ratio while dragging
+
+  // library
+  // (folder browser state lives near its functions: browserPath)
+
+  // reactor coils
+  (function buildCoils(){
+    var g = $("r-coils");
+    for(var i=0;i<8;i++){
+      var a = (i/8)*Math.PI*2;
+      var cx = 100 + Math.cos(a)*48;
+      var cy = 100 + Math.sin(a)*48;
+      var c = document.createElementNS("http://www.w3.org/2000/svg","rect");
+      c.setAttribute("x", (cx-4).toFixed(1));
+      c.setAttribute("y", (cy-7).toFixed(1));
+      c.setAttribute("width","8"); c.setAttribute("height","14");
+      c.setAttribute("rx","2");
+      c.setAttribute("fill","rgba(79,210,255,.55)");
+      c.setAttribute("transform","rotate("+(i/8*360)+" "+cx.toFixed(1)+" "+cy.toFixed(1)+")");
+      g.appendChild(c);
+    }
+  })();
+
+  // ---------- fetch loop ----------
+  async function tick(){
+    try{
+      var ctrl = new AbortController();
+      var to = setTimeout(function(){ ctrl.abort(); }, 2500);
+      var res = await fetch("/stats.json", {cache:"no-store", signal:ctrl.signal});
+      clearTimeout(to);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      var data = await res.json();
+      state = data;
+      connected = true;
+      lastGoodTs = Date.now();
+      applyData(data);
+    }catch(e){
+      connected = false;
+      applyLost();
+    }finally{
+      setTimeout(tick, 1000);
+    }
+  }
+
+  // ---------- render (data driven, once per second) ----------
+  function applyData(d){
+    var srv = d.server||{}, tr=d.transfer||{}, pb=d.playback||{}, tv=d.tv||{};
+
+    // history
+    if(Array.isArray(tr.history) && tr.history.length){
+      history = tr.history.slice(-60).map(function(x){ return num(x)?x:0; });
+      while(history.length<60) history.unshift(0);
+    }
+
+    // global status
+    var mbps = num(tr.mbps_now)?tr.mbps_now:0;
+    var st;
+    if(tv.connected && mbps>0.05){ st=["s-stream","STREAMING"]; }
+    else if(tv.connected){ st=["s-idle","EN ESPERA"]; }
+    else { st=["s-idle","IDLE"]; }
+    setStatus(st[0], st[1]);
+
+    // header
+    $("h-uptime").textContent = hhmmss(srv.uptime_s);
+    $("h-clock").textContent = new Date().toLocaleTimeString();
+
+    // reactor / gauge
+    $("r-mbps").textContent = fnum(mbps,1);
+    var peak = num(tr.mbps_peak)?tr.mbps_peak:0;
+    var top = Math.max(peak, mbps, 1);
+    $("g-fill").style.width = (clamp(mbps/top,0,1)*100).toFixed(1)+"%";
+    $("g-peak").style.left = (clamp(peak/top,0,1)*100).toFixed(1)+"%";
+    $("g-now").textContent = fnum(mbps,1);
+    $("g-peak-txt").textContent = fnum(peak,1);
+    $("cv-now").textContent = fnum(mbps,1);
+    $("cv-peak").textContent = fnum(peak,1);
+
+    // progress (dual-source: TV live vs estimated)
+    $("p-file").textContent = txt(srv.file_name);
+    renderPosition();
+
+    // target
+    var connEl = $("t-conn");
+    if(tv.connected){ connEl.textContent="● CONECTADO"; connEl.className="conn-big ok glow"; }
+    else { connEl.textContent="○ DESCONECTADO"; connEl.className="conn-big bad"; }
+    $("t-ip").textContent = txt(tv.ip);
+    $("t-mac").textContent = txt(tv.mac);
+    $("t-ua").textContent = txt(tv.user_agent);
+    $("t-seen").textContent = num(tv.last_seen_s)? ("hace "+fnum(tv.last_seen_s,1)+" s") : "—";
+
+    var heart=$("t-heart"), ping=$("t-ping");
+    if(tv.alive){
+      heart.className="heart beat";
+      ping.className="ping";
+      ping.innerHTML = (num(tv.ping_ms)?fnum(tv.ping_ms,1):"—")+"<small> MS</small>";
+    }else{
+      heart.className="heart dead";
+      ping.className="ping dead";
+      ping.innerHTML = "SIN PULSO<small></small>";
+    }
+
+    // server
+    $("s-uptime").textContent = hhmmss(srv.uptime_s);
+    $("s-file").textContent = txt(srv.file_name);
+    $("s-size").textContent = txt(srv.file_size_h);
+    $("s-dur").textContent = txt(srv.duration_h);
+    $("s-xfer").textContent = txt(tr.total_bytes_h) + (num(tr.total_bytes)?"":"") ;
+    $("s-req").textContent = num(tr.total_requests)?tr.total_requests:"—";
+    $("s-ep").textContent = txt(srv.ip)+ (num(srv.port)?(":"+srv.port):"");
+  }
+
+  function applyLost(){
+    setStatus("s-lost","SEÑAL PERDIDA / RECONECTANDO");
+    // keep last known values, but flag heart as unknown
+    var heart=$("t-heart");
+    if(heart) heart.className="heart dead";
+    $("h-clock").textContent = new Date().toLocaleTimeString();
+  }
+
+  function setStatus(cls,label){
+    var chip=$("h-status");
+    chip.className="status-chip "+cls;
+    $("h-status-txt").textContent=label;
+  }
+
+  // ---------- position: dual source (TV live vs estimated) ----------
+  function tvAuthoritative(){
+    return tvpos && num(tvpos.reltime_s) &&
+      (tvpos.state==="PLAYING" || tvpos.state==="PAUSED_PLAYBACK");
+  }
+  function renderPosition(){
+    var srv = (state&&state.server)||{};
+    var pb  = (state&&state.playback)||{};
+    var live = tvAuthoritative();
+    var ratio, curH, durH, durS, src;
+
+    if(live){
+      durS = num(tvpos.duration_s)?tvpos.duration_s : (num(srv.duration_s)?srv.duration_s:null);
+      ratio = num(durS)&&durS>0 ? clamp(tvpos.reltime_s/durS,0,1)
+                                : (num(pb.position_ratio)?clamp(pb.position_ratio,0,1):0);
+      curH = txt(tvpos.reltime_h!=null?tvpos.reltime_h:clock(tvpos.reltime_s));
+      durH = txt(tvpos.duration_h!=null?tvpos.duration_h:srv.duration_h);
+      src = "POSICIÓN REAL · TV EN VIVO";
+    }else{
+      durS = num(srv.duration_s)?srv.duration_s:null;
+      ratio = num(pb.position_ratio)?clamp(pb.position_ratio,0,1):0;
+      curH = txt(pb.position_time_h);
+      durH = txt(srv.duration_h);
+      src = "POSICIÓN ≈ ESTIMADA (BYTES)";
+    }
+
+    var pctStr = num(ratio)?(ratio*100).toFixed(1)+"%":"—%";
+    $("p-file").textContent = txt(srv.file_name);
+
+    // single scrubber (skip time/pct paint while dragging)
+    $("ctl-src").textContent = src;
+    $("scr-fill").style.width = (ratio*100).toFixed(1)+"%";
+    $("scr-knob").style.left = (ratio*100).toFixed(1)+"%";
+    if(!dragging){
+      $("scr-cur").textContent = curH;
+      $("scr-dur").textContent = durH;
+      $("scr-pct").textContent = pctStr;
+    }
+  }
+
+  // ---------- control state chip ----------
+  function renderControlState(){
+    var chip=$("ctl-state"), t=$("ctl-state-txt"), note=$("ctl-note");
+    if(!ctlAvailable){
+      chip.className="ctl-state st-none"; t.textContent="CONTROL NO DISPONIBLE";
+      note.style.display="none"; return;
+    }
+    var s = tvpos && tvpos.state;
+    var map = {
+      "PLAYING":["st-play","REPRODUCIENDO"],
+      "PAUSED_PLAYBACK":["st-pause","EN PAUSA"],
+      "STOPPED":["st-stop","DETENIDO"],
+      "TRANSITIONING":["st-trans","TRANSICIÓN…"],
+      "NO_MEDIA_PRESENT":["st-none","SIN MEDIA"]
+    };
+    var m = map[s] || ["st-none", (s?String(s):"—")];
+    chip.className="ctl-state "+m[0];
+    t.textContent=m[1];
+    var notStarted = (!s || s==="NO_MEDIA_PRESENT");
+    note.style.display = notStarted ? "" : "none";
+  }
+
+  // ---------- /api/tvpos loop ----------
+  async function tickTv(){
+    try{
+      var r = await apiGet("/api/tvpos");
+      tvpos = r;
+      ctlAvailable = true;
+    }catch(e){
+      ctlAvailable = false;
+      tvpos = null;
+    }finally{
+      renderControlState();
+      renderPosition();
+      setTimeout(tickTv, 1000);
+    }
+  }
+
+  // ---------- api helpers ----------
+  async function apiGet(path){
+    var ctrl=new AbortController();
+    var to=setTimeout(function(){ctrl.abort();},4000);
+    try{
+      var res=await fetch(path,{cache:"no-store",signal:ctrl.signal});
+      var data=await res.json();
+      if(!res.ok) throw new Error((data&&data.error)||("HTTP "+res.status));
+      return data;
+    }finally{ clearTimeout(to); }
+  }
+  async function cmd(path, okMsg){
+    try{
+      var r=await apiGet(path);
+      if(r && r.ok===false) throw new Error(r.error||"error");
+      toast(okMsg||"OK", false);
+      return r;
+    }catch(e){
+      toast("ERROR: "+(e&&e.message?e.message:"fallo"), true);
+      return null;
+    }
+  }
+  function curTvSec(){
+    return (tvpos && num(tvpos.reltime_s)) ? tvpos.reltime_s : 0;
+  }
+  async function doSeek(sec, label){
+    if(!num(sec)) { toast("TIEMPO INVÁLIDO", true); return; }
+    sec=Math.max(0,Math.round(sec));
+    seeking=true; $("scr-seeking").style.display="";
+    toast("BUSCANDO "+clock(sec)+"…", false);
+    try{
+      var r=await apiGet("/api/seek?t="+sec);
+      if(r && r.ok===false) throw new Error(r.error||"error");
+      toast((label||"SALTO A ")+clock(sec), false);
+    }catch(e){
+      toast("ERROR SEEK: "+(e&&e.message?e.message:"fallo"), true);
+    }finally{
+      seeking=false; $("scr-seeking").style.display="none";
+    }
+  }
+
+  // ---------- wiring ----------
+  function wireControls(){
+    $("b-play").addEventListener("click", function(){ cmd("/api/play","▶ REPRODUCIENDO"); });
+    $("b-pause").addEventListener("click", function(){ cmd("/api/pause","⏸ PAUSADO"); });
+    $("b-stop").addEventListener("click", function(){ cmd("/api/stop","⏹ DETENIDO"); });
+    var jumps=document.querySelectorAll("[data-jump]");
+    for(var i=0;i<jumps.length;i++){
+      (function(b){
+        b.addEventListener("click", function(){
+          var d=parseFloat(b.getAttribute("data-jump"));
+          doSeek(curTvSec()+d, (d<0?"◀ ":"▶ ")+d+"s → ");
+        });
+      })(jumps[i]);
+    }
+    $("b-goto").addEventListener("click", function(){
+      var s=parseTime($("goto-input").value);
+      if(s==null){ toast("FORMATO: MM:SS", true); return; }
+      doSeek(s, "IR A ");
+    });
+    $("goto-input").addEventListener("keydown", function(e){
+      if(e.key==="Enter") $("b-goto").click();
+    });
+    $("b-cast").addEventListener("click", async function(){
+      var v=$("goto-input").value.trim();
+      var s = v==="" ? 0 : parseTime(v);
+      if(s==null){ toast("FORMATO: MM:SS", true); return; }
+      toast("INICIANDO EN TV…", false);
+      var r=await cmd("/api/cast?seek="+clock(s), "⧉ INICIADO EN TV DESDE "+clock(s));
+    });
+
+    // scrubber click + drag -> seek
+    var scr=$("scrub");
+    function ratioFromEvent(ev){
+      var rect=scr.getBoundingClientRect();
+      var x=(ev.touches?ev.touches[0].clientX:ev.clientX)-rect.left;
+      return clamp(x/rect.width,0,1);
+    }
+    function paintDrag(rat){
+      $("scr-fill").style.transition="none";
+      $("scr-knob").style.transition="none";
+      $("scr-fill").style.width=(rat*100).toFixed(1)+"%";
+      $("scr-knob").style.left=(rat*100).toFixed(1)+"%";
+      $("scr-pct").textContent=(rat*100).toFixed(1)+"%";
+      var durS = (tvpos&&num(tvpos.duration_s))?tvpos.duration_s
+               : (state&&state.server&&num(state.server.duration_s))?state.server.duration_s:null;
+      if(num(durS)) $("scr-cur").textContent=clock(rat*durS);
+    }
+    function endDrag(rat){
+      dragging=false;
+      $("scr-fill").style.transition="";
+      $("scr-knob").style.transition="";
+      var durS = (tvpos&&num(tvpos.duration_s))?tvpos.duration_s
+               : (state&&state.server&&num(state.server.duration_s))?state.server.duration_s:null;
+      if(!num(durS)||durS<=0){ toast("SIN DURACIÓN CONOCIDA", true); renderPosition(); return; }
+      doSeek(rat*durS, "BUSCAR ");
+    }
+    scr.addEventListener("mousedown", function(ev){ dragging=true; dragRatio=ratioFromEvent(ev); paintDrag(dragRatio); });
+    window.addEventListener("mousemove", function(ev){ if(dragging){ dragRatio=ratioFromEvent(ev); paintDrag(dragRatio); } });
+    window.addEventListener("mouseup", function(ev){ if(dragging){ endDrag(dragRatio); } });
+    scr.addEventListener("touchstart", function(ev){ dragging=true; dragRatio=ratioFromEvent(ev); paintDrag(dragRatio); }, {passive:true});
+    scr.addEventListener("touchmove", function(ev){ if(dragging){ dragRatio=ratioFromEvent(ev); paintDrag(dragRatio); } }, {passive:true});
+    scr.addEventListener("touchend", function(ev){ if(dragging){ endDrag(dragRatio); } });
+  }
+
+  // ---------- library (~10s) ----------
+  function renderLibrary(lib){
+    var list=$("lib-list"), empty=$("lib-empty");
+    $("lib-root").textContent = (lib && lib.root) ? String(lib.root) : "—";
+    var items = lib && Array.isArray(lib.items) ? lib.items : null;
+    if(!items || !items.length){
+      empty.style.display=""; list.innerHTML="";
+      empty.textContent = "BIBLIOTECA NO DISPONIBLE (ARRANCA EL SERVER CON UNA CARPETA)";
+      return;
+    }
+    empty.style.display="none";
+    var cur = lib.current!=null ? String(lib.current) : null;
+    list.innerHTML="";
+    items.forEach(function(it){
+      if(!it) return;
+      var row=document.createElement("div");
+      row.className="lib-item";
+      var title = txt(it.title);
+      var isCur = cur!=null && title!=="—" && title===cur;
+      if(isCur) row.className+=" current";
+      var left=document.createElement("span"); left.className="lt"; left.textContent=title;
+      var right=document.createElement("span");
+      if(isCur){ right.className="lib-badge"; right.textContent="EN PANTALLA"; }
+      else { right.className="lz"; right.textContent=txt(it.size_h); }
+      row.appendChild(left); row.appendChild(right);
+      row.addEventListener("click", async function(){
+        if(!num(it.id)){ toast("ID INVÁLIDO", true); return; }
+        toast("▶ CARGANDO "+title+"…", false);
+        var r=await cmd("/api/load?id="+it.id, "▶ CARGANDO "+title);
+        if(r) tickLibrary();
+      });
+      list.appendChild(row);
+    });
+  }
+  async function tickLibrary(){
+    try{ renderLibrary(await apiGet("/api/library")); }
+    catch(e){ renderLibrary(null); }
+    finally{ setTimeout(tickLibrary, 10000); }
+  }
+
+  // ---------- folder browser ----------
+  var browserPath = null;   // path currently shown in the browser
+
+  function renderDirs(d){
+    var unavail=$("browser-unavail"), listEl=$("browser-list"), pathEl=$("browser-path");
+    if(!d || typeof d.path!=="string"){
+      unavail.style.display=""; listEl.innerHTML=""; pathEl.textContent="—";
+      $("b-browse-use").disabled=true;
+      return;
+    }
+    unavail.style.display="none";
+    $("b-browse-use").disabled=false;
+    browserPath = d.path;
+    pathEl.textContent = d.path + (num(d.videos_here) ? ("  ·  "+d.videos_here+" VIDEOS AQUÍ") : "");
+    listEl.innerHTML="";
+    // ⬆ SUBIR
+    if(d.parent && d.parent!==d.path){
+      var up=document.createElement("div");
+      up.className="browser-item up";
+      var un=document.createElement("span"); un.className="bn"; un.textContent="⬆ SUBIR";
+      var uv=document.createElement("span"); uv.className="bv"; uv.textContent="";
+      up.appendChild(un); up.appendChild(uv);
+      up.addEventListener("click", function(){ navDirs(d.parent); });
+      listEl.appendChild(up);
+    }
+    var dirs = Array.isArray(d.dirs)?d.dirs:[];
+    dirs.forEach(function(sub){
+      if(!sub || typeof sub.path!=="string") return;
+      var row=document.createElement("div");
+      row.className="browser-item";
+      var n=document.createElement("span"); n.className="bn"; n.textContent="📁 "+txt(sub.name);
+      var v=document.createElement("span"); v.className="bv"; v.textContent=num(sub.videos)?(sub.videos+" VIDEOS"):"";
+      row.appendChild(n); row.appendChild(v);
+      row.addEventListener("click", function(){ navDirs(sub.path); });
+      listEl.appendChild(row);
+    });
+  }
+  async function navDirs(path){
+    try{
+      var q = path ? ("?path="+encodeURIComponent(path)) : "";
+      renderDirs(await apiGet("/api/dirs"+q));
+    }catch(e){ renderDirs(null); }
+  }
+  function wireBrowser(){
+    $("b-browse").addEventListener("click", function(){
+      var box=$("browser");
+      if(box.style.display==="none"){
+        box.style.display="";
+        var start = $("lib-root").textContent;
+        navDirs(start && start!=="—" ? start : "");
+      }else{
+        box.style.display="none";
+      }
+    });
+    $("b-browse-close").addEventListener("click", function(){ $("browser").style.display="none"; });
+    $("b-browse-use").addEventListener("click", async function(){
+      if(!browserPath){ toast("SIN CARPETA SELECCIONADA", true); return; }
+      var r=await cmd("/api/setlibrary?path="+encodeURIComponent(browserPath), null);
+      if(r){
+        var n = num(r.count)?r.count:"?";
+        toast("BIBLIOTECA: "+n+" VIDEOS EN "+browserPath, false);
+        $("browser").style.display="none";
+        tickLibrary();
+      }
+    });
+  }
+
+  // ---------- info popovers ----------
+  function wirePopovers(){
+    var pop=document.createElement("div");
+    pop.className="popover"; pop.setAttribute("role","tooltip"); pop.id="panel-pop";
+    document.body.appendChild(pop);
+    var curBtn=null, pinned=false;
+
+    function place(btn){
+      pop.style.left="0px"; pop.style.top="0px"; // reset before measuring
+      var r=btn.getBoundingClientRect();
+      var pw=pop.offsetWidth, ph=pop.offsetHeight;
+      var vw=window.innerWidth, vh=window.innerHeight;
+      var left=r.left;
+      if(left+pw>vw-8) left=vw-pw-8;
+      if(left<8) left=8;
+      var top=r.bottom+8;
+      if(top+ph>vh-8) top=r.top-ph-8;   // flip above if it would overflow
+      if(top<8) top=8;
+      pop.style.left=left+"px"; pop.style.top=top+"px"; // on <=520px CSS overrides left/right
+    }
+    function openPop(btn){
+      if(curBtn && curBtn!==btn) curBtn.setAttribute("aria-expanded","false");
+      curBtn=btn;
+      pop.textContent=btn.getAttribute("data-info")||"";
+      btn.setAttribute("aria-describedby","panel-pop");
+      btn.setAttribute("aria-expanded","true");
+      pop.classList.add("open");
+      place(btn);
+    }
+    function closePop(){
+      if(curBtn) curBtn.setAttribute("aria-expanded","false");
+      pop.classList.remove("open");
+      curBtn=null; pinned=false;
+    }
+
+    var btns=document.querySelectorAll(".info");
+    Array.prototype.forEach.call(btns, function(btn){
+      btn.addEventListener("pointerenter", function(e){ if(e.pointerType==="mouse") openPop(btn); });
+      btn.addEventListener("pointerleave", function(e){ if(e.pointerType==="mouse" && !pinned) closePop(); });
+      btn.addEventListener("focus", function(){ openPop(btn); });
+      btn.addEventListener("blur", function(){ if(!pinned) closePop(); });
+      btn.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(curBtn===btn && pinned){ closePop(); }
+        else { openPop(btn); pinned=true; }
+      });
+    });
+    window.addEventListener("keydown", function(e){ if(e.key==="Escape") closePop(); });
+    document.addEventListener("click", function(e){
+      if(curBtn && !pop.contains(e.target) && !(e.target.closest && e.target.closest(".info"))) closePop();
+    });
+    window.addEventListener("resize", function(){ if(curBtn) place(curBtn); });
+    window.addEventListener("scroll", function(){ if(curBtn) place(curBtn); }, true);
+  }
+
+  // ---------- canvas chart ----------
+  var cv=$("chart"), cx=cv.getContext("2d");
+  function sizeCanvas(){
+    var r=cv.getBoundingClientRect();
+    var dpr=window.devicePixelRatio||1;
+    cv.width=Math.max(1,Math.round(r.width*dpr));
+    cv.height=Math.max(1,Math.round(r.height*dpr));
+    cx.setTransform(dpr,0,0,dpr,0,0);
+    return {w:r.width,h:r.height};
+  }
+  function drawChart(){
+    var d=sizeCanvas(), w=d.w, h=d.h;
+    cx.clearRect(0,0,w,h);
+    var pad=8, gw=w-pad*2, gh=h-pad*2;
+    var maxv=1;
+    for(var i=0;i<history.length;i++) if(history[i]>maxv) maxv=history[i];
+    maxv=maxv*1.15;
+
+    // grid
+    cx.strokeStyle="rgba(79,210,255,.10)"; cx.lineWidth=1;
+    for(var gy=0;gy<=4;gy++){
+      var y=pad+gh*gy/4;
+      cx.beginPath(); cx.moveTo(pad,y); cx.lineTo(w-pad,y); cx.stroke();
+    }
+
+    var n=history.length;
+    function X(i){ return pad + gw*(i/(n-1)); }
+    function Y(v){ return pad + gh*(1 - clamp(v/maxv,0,1)); }
+
+    // area
+    cx.beginPath();
+    cx.moveTo(X(0), pad+gh);
+    for(var i=0;i<n;i++) cx.lineTo(X(i), Y(history[i]));
+    cx.lineTo(X(n-1), pad+gh);
+    cx.closePath();
+    var grad=cx.createLinearGradient(0,pad,0,pad+gh);
+    grad.addColorStop(0,"rgba(79,210,255,.42)");
+    grad.addColorStop(1,"rgba(79,210,255,.02)");
+    cx.fillStyle=grad; cx.fill();
+
+    // line + glow
+    cx.shadowColor="rgba(79,210,255,.9)"; cx.shadowBlur=8;
+    cx.strokeStyle="#7fe0ff"; cx.lineWidth=2; cx.lineJoin="round";
+    cx.beginPath();
+    for(var i=0;i<n;i++){ if(i===0)cx.moveTo(X(i),Y(history[i])); else cx.lineTo(X(i),Y(history[i])); }
+    cx.stroke();
+    cx.shadowBlur=0;
+
+    // peak marker
+    var pk=0,pki=0;
+    for(var i=0;i<n;i++) if(history[i]>pk){pk=history[i];pki=i;}
+    if(pk>0){
+      cx.fillStyle="#ffd447";
+      cx.beginPath(); cx.arc(X(pki),Y(pk),3,0,Math.PI*2); cx.fill();
+      cx.strokeStyle="rgba(255,212,71,.4)"; cx.setLineDash([2,4]);
+      cx.beginPath(); cx.moveTo(X(pki),Y(pk)); cx.lineTo(X(pki),pad+gh); cx.stroke();
+      cx.setLineDash([]);
+    }
+    // head dot
+    cx.fillStyle="#bff0ff"; cx.shadowColor="rgba(79,210,255,1)"; cx.shadowBlur=10;
+    cx.beginPath(); cx.arc(X(n-1),Y(history[n-1]),3.2,0,Math.PI*2); cx.fill();
+    cx.shadowBlur=0;
+  }
+
+  // ---------- animation (reactor pulse + chart) ----------
+  var t0=performance.now();
+  function frame(now){
+    var t=(now-t0)/1000;
+    // smoothed activity target
+    var target = connected && state && state.transfer && num(state.transfer.mbps_now) ? state.transfer.mbps_now : 0;
+    displayMbps += (target - displayMbps)*0.12;
+    var act = clamp(displayMbps/ (state&&state.transfer&&num(state.transfer.mbps_peak)&&state.transfer.mbps_peak>0 ? state.transfer.mbps_peak : Math.max(displayMbps,4)),0,1);
+
+    // pulse speed & intensity by activity
+    var speed = 0.6 + act*3.2;               // faster when busy
+    var pulse = 0.5 + 0.5*Math.sin(t*speed*Math.PI); // 0..1
+    var base = 0.35 + act*0.5;
+    var op = clamp(base + pulse*(0.25+act*0.4), 0.15, 1);
+
+    var glow=$("r-glow");
+    if(glow){
+      glow.setAttribute("opacity", op.toFixed(3));
+      var sc = 1 + pulse*(0.05+act*0.12);
+      glow.setAttribute("r", (40*sc).toFixed(2));
+      glow.setAttribute("filter","");
+    }
+    var r1=$("r-ring1"), r2=$("r-ring2"), coils=$("r-coils");
+    if(r1) r1.style.transform="rotate("+((t*(12+act*80))%360)+"deg)";
+    if(r2) r2.style.transform="rotate("+(-(t*(6+act*40))%360)+"deg)";
+    if(coils) coils.style.transform="rotate("+((t*(8+act*30))%360)+"deg)";
+
+    // connection dim on lost signal
+    var rw=document.querySelector(".reactor");
+    if(rw) rw.style.filter = connected ? "none" : "grayscale(.6) brightness(.6)";
+
+    drawChart();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- go ----------
+  window.addEventListener("resize", drawChart);
+  wireControls();
+  wireBrowser();
+  wirePopovers();
+  renderControlState();
+  requestAnimationFrame(frame);
+  tick();
+  tickTv();
+  tickLibrary();
+})();
+</script>
+</body>
+</html>
