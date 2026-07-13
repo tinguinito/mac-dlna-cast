@@ -9,3 +9,6 @@ __pycache__/
 *.pyc
 # IP del TV cacheada (local)
 .dlna_tv_ip
+
+# Perfil de estilo de decisión (personal — no va al repo público)
+docs/referencia/estilo-decisiones-usuario.*.md
