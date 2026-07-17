@@ -108,6 +108,46 @@ no, cae a la estimación de `/stats.json`. Endpoints de control:
 - **Pylance** marca muchos "tipos desconocidos": es ruido (código sin
   anotaciones de tipo), no errores. Ignorar.
 
+- **`/api/load` casteaba en un hilo de fondo y mentía éxito.** Corregido:
+  ahora el cast corre síncrono dentro del request para que el HUD reciba el
+  resultado real (incluido el caso "TV apagada"). Ver `CHANGELOG.md` 0.3.0.
+
+- **El TV "apagado" con el control remoto casi nunca corta la red.** Queda en
+  standby y responde SOAP/ping igual. La primera vez que un cast le llega en
+  ese estado, el Samsung muestra un cuadro de "permitir conexión" en pantalla
+  y no contesta hasta que se acepta con el control — por eso `cast_to_tv()`
+  usa timeout de 25s en el primer `SetURI`/`Play` (no en los controles
+  normales). Una vez aprobado, el TV lo recuerda para siempre gracias al UDN
+  fijo, sobrevive reinicios del server.
+
+- **Wake-on-LAN SÍ funciona en este TV** (Samsung UN55NU7095, 2018, WiFi),
+  confirmado en vivo con la pantalla apagada de verdad (no solo standby).
+  `wake_tv()` manda el paquete mágico a la MAC cacheada en `.dlna_tv_mac`
+  (persistida vía ARP). `cast_to_tv()` lo intenta solo si no encuentra el
+  MediaRenderer.
+
+- **Apagado remoto por WebSocket (`ms.remote.control`, puerto 8001/8002) está
+  implementado pero NO funciona contra este TV.** El canal conecta bien pero
+  nunca entrega token de autorización ni muestra cuadro de permiso — rechaza
+  `KEY_POWER`/`KEY_POWEROFF` con `"unrecognized method value"`. Es un ajuste
+  del TV (Ajustes → General → Administrador de dispositivos externos →
+  Administrador de conexión de dispositivos), no un bug del cliente. No
+  reintentar el mismo enfoque sin que el usuario revise ese menú primero.
+
+- **Cambiar de red (banda WiFi, DHCP) rompe SSDP/anuncio hasta reiniciar.**
+  `network_watch_thread` detecta una IP nueva estable (dos chequeos
+  seguidos) y se reejecuta solo (`os.execv`) — evita que quede sirviendo con
+  la IP vieja indefinidamente.
+
+- **Dos casts superpuestos tiran 500 del Samsung.** `cast_to_tv()` usa un
+  lock no bloqueante (`_cast_lock`): el segundo intento devuelve "ya hay un
+  cast en curso" en vez de chocar contra el mismo MediaRenderer.
+
+- **Reiniciar el server corta lo que esté reproduciendo en el TV.** Antes de
+  reiniciar para aplicar un cambio de backend, si hay algo en curso conviene
+  capturar `id` de biblioteca + `reltime_s` (`/api/tvpos`, `/api/library`) y
+  recargar + saltar a esa posición después del reinicio.
+
 ## El TV (referencia)
 
 Samsung **UN55NU7095**, WiFi **solo 2.4 GHz**. Expone:

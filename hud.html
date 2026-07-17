@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mac DLNA Cast — HUD</title>
 <style>
   :root{
@@ -25,7 +25,8 @@
     letter-spacing:.06em;
     min-height:100%;
     overflow-x:hidden;
-    padding:14px;
+    padding:max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+            max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
   }
   body::before{
     content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
@@ -198,10 +199,10 @@
 
   /* ---- Biblioteca ---- */
   .lib-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:12px}
-  .lib-root{font-size:11px;color:var(--cyan);letter-spacing:.08em;word-break:break-all;overflow-wrap:anywhere;opacity:.9;flex:1;min-width:0}
+  .lib-root{font-size:11px;color:var(--cyan);letter-spacing:.08em;word-break:break-all;overflow-wrap:anywhere;opacity:.9;flex:1;min-width:180px}
   .browser{border:1px solid var(--line);border-radius:5px;background:rgba(0,0,0,.28);padding:10px;margin-bottom:12px}
   .browser-bar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}
-  .browser-path{font-size:11px;color:var(--gold);letter-spacing:.06em;word-break:break-all;overflow-wrap:anywhere;flex:1;min-width:0}
+  .browser-path{font-size:11px;color:var(--gold);letter-spacing:.06em;word-break:break-all;overflow-wrap:anywhere;flex:1;min-width:180px}
   .browser-unavail{font-size:11px;color:var(--red);letter-spacing:.12em;text-transform:uppercase;padding:6px 0}
   .browser-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;overflow-x:hidden;padding-right:4px}
   .browser-item{
@@ -403,6 +404,23 @@
         </div>
         <span class="grp-sep"></span>
         <button class="btn gold" id="b-cast" title="Toma el control del TV y reproduce desde el server">⧉ INICIAR EN TV</button>
+        <span class="grp-sep"></span>
+        <button class="btn" id="b-wake" title="Manda Wake-on-LAN a la MAC conocida del TV">⏻ PRENDER TV</button>
+        <button class="btn red" id="b-tvoff" title="Manda KEY_POWER por el WebSocket de control remoto (la primera vez pide permiso en el TV)">⏻ APAGAR TV</button>
+        <span class="grp-sep"></span>
+        <button class="btn" id="b-tvsel" title="Elegir a qué TV castear">📺 TV: <span id="tvsel-label">—</span> ▾</button>
+      </div>
+
+      <div class="browser" id="tvsel-panel" style="display:none">
+        <div class="browser-bar">
+          <span class="browser-path">TVS ENCONTRADAS EN LA RED</span>
+          <div class="btn-grp">
+            <button class="btn" id="b-tvsel-refresh">↻ BUSCAR DE NUEVO</button>
+            <button class="btn red" id="b-tvsel-close">✕ CERRAR</button>
+          </div>
+        </div>
+        <div class="browser-unavail" id="tvsel-unavail" style="display:none">BUSCANDO…</div>
+        <div class="browser-list" id="tvsel-list"></div>
       </div>
 
       <div class="audio-note">🔊 AUDIO POR BARRA PHILIPS (HDMI-ARC) — AJUSTA EL VOLUMEN CON SU CONTROL. NO ACCESIBLE POR RED.</div>
@@ -614,6 +632,7 @@
 
     // progress (dual-source: TV live vs estimated)
     $("p-file").textContent = txt(srv.file_name);
+    $("tvsel-label").textContent = tv.ip ? txt(tv.ip) : "—";
     renderPosition();
 
     // target
@@ -739,9 +758,9 @@
   }
 
   // ---------- api helpers ----------
-  async function apiGet(path){
+  async function apiGet(path, timeoutMs){
     var ctrl=new AbortController();
-    var to=setTimeout(function(){ctrl.abort();},4000);
+    var to=setTimeout(function(){ctrl.abort();},timeoutMs||4000);
     try{
       var res=await fetch(path,{cache:"no-store",signal:ctrl.signal});
       var data=await res.json();
@@ -749,10 +768,10 @@
       return data;
     }finally{ clearTimeout(to); }
   }
-  async function cmd(path, okMsg){
+  async function cmd(path, okMsg, timeoutMs){
     try{
-      var r=await apiGet(path);
-      if(r && r.ok===false) throw new Error(r.error||"error");
+      var r=await apiGet(path, timeoutMs);
+      if(r && r.ok===false) throw new Error(r.msg||r.error||"error");
       toast(okMsg||"OK", false);
       return r;
     }catch(e){
@@ -805,8 +824,16 @@
       var v=$("goto-input").value.trim();
       var s = v==="" ? 0 : parseTime(v);
       if(s==null){ toast("FORMATO: MM:SS", true); return; }
-      toast("INICIANDO EN TV…", false);
-      var r=await cmd("/api/cast?seek="+clock(s), "⧉ INICIADO EN TV DESDE "+clock(s));
+      toast("INICIANDO EN TV… SI ES LA PRIMERA VEZ, REVISA LA PANTALLA DEL TV", false);
+      var r=await cmd("/api/cast?seek="+clock(s), "⧉ INICIADO EN TV DESDE "+clock(s), 30000);
+    });
+    $("b-wake").addEventListener("click", async function(){
+      toast("MANDANDO WAKE-ON-LAN…", false);
+      await cmd("/api/wake", "⏻ TV RESPONDIENDO", 25000);
+    });
+    $("b-tvoff").addEventListener("click", async function(){
+      toast("APAGANDO… SI ES LA PRIMERA VEZ, REVISA LA PANTALLA DEL TV", false);
+      await cmd("/api/tvoff", "⏻ APAGADO ENVIADO", 30000);
     });
 
     // scrubber click + drag -> seek
@@ -870,8 +897,8 @@
       row.appendChild(left); row.appendChild(right);
       row.addEventListener("click", async function(){
         if(!num(it.id)){ toast("ID INVÁLIDO", true); return; }
-        toast("▶ CARGANDO "+title+"…", false);
-        var r=await cmd("/api/load?id="+it.id, "▶ CARGANDO "+title);
+        toast("▶ CARGANDO "+title+"… SI ES LA PRIMERA VEZ, REVISA LA PANTALLA DEL TV", false);
+        var r=await cmd("/api/load?id="+it.id, "▶ "+title+" EN TV", 30000);
         if(r) tickLibrary();
       });
       list.appendChild(row);
@@ -948,6 +975,46 @@
         tickLibrary();
       }
     });
+  }
+
+  // ---------- selector de TVs ----------
+  function renderTvs(d){
+    var unavail=$("tvsel-unavail"), listEl=$("tvsel-list");
+    var items = d && Array.isArray(d.items) ? d.items : null;
+    if(!items){ unavail.style.display=""; unavail.textContent="NO PUDE BUSCAR"; listEl.innerHTML=""; return; }
+    if(!items.length){ unavail.style.display=""; unavail.textContent="NO ENCONTRÉ NINGUNA TV EN LA RED"; listEl.innerHTML=""; return; }
+    unavail.style.display="none";
+    listEl.innerHTML="";
+    items.forEach(function(it){
+      if(!it || typeof it.ip!=="string") return;
+      var row=document.createElement("div");
+      row.className="browser-item"+(it.selected?" up":"");
+      var n=document.createElement("span"); n.className="bn";
+      n.textContent=(it.alive?"🟢 ":"⚪ ")+txt(it.name)+"  ("+it.ip+")"+(it.selected?" · ACTUAL":"");
+      var v=document.createElement("span"); v.className="bv"; v.textContent=it.selected?"":"USAR";
+      row.appendChild(n); row.appendChild(v);
+      if(!it.selected){
+        row.addEventListener("click", async function(){
+          var r=await cmd("/api/tvs/select?ip="+encodeURIComponent(it.ip), "📺 TV FIJADA: "+txt(it.name));
+          if(r){ $("tvsel-panel").style.display="none"; refreshTvs(); }
+        });
+      }
+      listEl.appendChild(row);
+    });
+  }
+  async function refreshTvs(){
+    $("tvsel-unavail").style.display=""; $("tvsel-unavail").textContent="BUSCANDO…"; $("tvsel-list").innerHTML="";
+    try{ renderTvs(await apiGet("/api/tvs", 6000)); }
+    catch(e){ renderTvs(null); }
+  }
+  function wireTvSelector(){
+    $("b-tvsel").addEventListener("click", function(){
+      var box=$("tvsel-panel");
+      if(box.style.display==="none"){ box.style.display=""; refreshTvs(); }
+      else{ box.style.display="none"; }
+    });
+    $("b-tvsel-close").addEventListener("click", function(){ $("tvsel-panel").style.display="none"; });
+    $("b-tvsel-refresh").addEventListener("click", refreshTvs);
   }
 
   // ---------- info popovers ----------
@@ -1108,6 +1175,7 @@
   window.addEventListener("resize", drawChart);
   wireControls();
   wireBrowser();
+  wireTvSelector();
   wirePopovers();
   renderControlState();
   requestAnimationFrame(frame);

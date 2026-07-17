@@ -30,8 +30,10 @@ import re
 import sys
 import json
 import atexit
+import base64
 import signal
 import socket
+import ssl
 import struct
 import subprocess
 import threading
@@ -51,6 +53,7 @@ SSDP_PORT = 1900
 CHUNK = 256 * 1024  # 256 KB por bloque al transmitir
 HUD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hud.html")
 TV_IP_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_ip")
+TV_MAC_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_mac")
 
 VIDEO_EXTS = (".mp4", ".m4v", ".mkv", ".mov", ".avi", ".ts")
 MIME_MAP = {
@@ -73,6 +76,7 @@ STATE = {
     "start_offset_s": 0,      # dónde arranca el fragmento dentro de la peli
     "seek_temp": None,        # ruta del archivo temporal recortado (para borrarlo al salir)
     "lib_root": None,         # carpeta raíz de la biblioteca actual
+    "tv_selected_ip": None,   # TV fijada a mano desde el selector (None = auto)
     # UDN fijo (derivado de un namespace estable): reinicios reusan la misma
     # identidad y el TV no muestra iconos fantasma duplicados.
     "udn": "uuid:" + str(uuid.uuid5(uuid.NAMESPACE_DNS, "mac-dlna-cast.local")),
@@ -318,6 +322,22 @@ def ping_once(ip):
     return None
 
 
+def _read_tv_mac_cache():
+    try:
+        with open(TV_MAC_CACHE) as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def _write_tv_mac_cache(mac):
+    try:
+        with open(TV_MAC_CACHE, "w") as f:
+            f.write(mac)
+    except OSError:
+        pass
+
+
 def tv_health_thread(stop_event):
     """Cada 3 s: pinguea al TV conectado y resuelve su MAC. Alimenta el HUD."""
     while not stop_event.is_set():
@@ -333,7 +353,45 @@ def tv_health_thread(stop_event):
                 METRICS["tv_last_ping"] = time.time()
                 if mac:
                     METRICS["tv_mac"] = mac
+            if mac and mac != have_mac:
+                _write_tv_mac_cache(mac)
         stop_event.wait(3)
+
+
+def wake_tv():
+    """Manda un paquete mágico Wake-on-LAN a la MAC conocida del TV. Verificado
+    en vivo: el Samsung UN55NU7095 SÍ enciende de un apagado real por esto
+    (no solo standby de red). -> (ok, mensaje)."""
+    mac = METRICS.get("tv_mac") or _read_tv_mac_cache()
+    if not mac:
+        return False, "No tengo la MAC del TV todavía (necesita haberse visto una vez)"
+    try:
+        mac_bytes = bytes.fromhex(mac.replace(":", ""))
+    except ValueError:
+        return False, "MAC inválida en caché: %s" % mac
+    magic = b"\xff" * 6 + mac_bytes * 16
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    try:
+        for port in (9, 7):
+            for addr in ("<broadcast>", "255.255.255.255"):
+                sock.sendto(magic, (addr, port))
+    finally:
+        sock.close()
+    return True, "WOL enviado a " + mac
+
+
+def wait_tv_awake(timeout_s=20, interval_s=2):
+    """Pinguea la IP conocida del TV hasta que responda o se acabe el tiempo."""
+    ip = METRICS.get("tv_ip") or os.environ.get("DLNA_TV_IP") or _read_tv_cache()
+    if not ip:
+        return False
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if ping_once(ip) is not None:
+            return True
+        time.sleep(interval_s)
+    return False
 
 
 # DLNA.ORG flags para streaming con seek por rango (operación 01 = range ok)
@@ -547,6 +605,11 @@ RC_SERVICE = "urn:schemas-upnp-org:service:RenderingControl:1"
 DIAL_SERVICE = "urn:dial-multiscreen-org:service:dial:1"
 TV_CTRL = {"control_url": None, "rc_url": None, "dial_url": None}
 
+# Serializa las secuencias de cast (SetURI+Play+Seek) para que un segundo cast
+# disparado mientras el primero sigue en curso no choque contra el mismo
+# MediaRenderer (el Samsung devuelve 500 si le llegan Set/Play superpuestos).
+_cast_lock = threading.Lock()
+
 
 def _soap_call(url, service, action, inner_xml, timeout=6):
     body = (
@@ -614,6 +677,14 @@ def discover_renderer(timeout=3):
     """Encuentra el controlURL de AVTransport del TV (MediaRenderer). Cachea."""
     if TV_CTRL["control_url"]:
         return TV_CTRL["control_url"]
+    # Si el usuario fijó una TV a mano desde el selector, respetamos SOLO esa
+    # (no caemos de vuelta a otra distinta si falla: sería sorprendente).
+    pinned = STATE.get("tv_selected_ip")
+    if pinned:
+        if _process_desc("http://%s:9197/dmr" % pinned):
+            _write_tv_cache(pinned)
+            return TV_CTRL["control_url"]
+        return None
     msearch = (
         "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\n"
         'MAN: "ssdp:discover"\r\nMX: 2\r\n'
@@ -688,6 +759,65 @@ def _extract_control_url(xml, service_name, base):
     return ctrl
 
 
+def _friendly_name(xml):
+    m = re.search(r"<friendlyName>\s*([^<]+?)\s*</friendlyName>", xml, re.S)
+    return m.group(1).strip() if m else None
+
+
+def list_renderers(scan_timeout=0.5):
+    """Escanea la subred entera por MediaRenderers (:9197/dmr), no se detiene
+    en el primero como discover_renderer(). Para el selector de TVs del HUD."""
+    parts = STATE["ip"].split(".")
+    if len(parts) != 4:
+        return []
+    base = ".".join(parts[:3])
+    found = []
+    lock = threading.Lock()
+
+    def probe(ip):
+        loc = "http://%s:9197/dmr" % ip
+        try:
+            xml = urllib.request.urlopen(loc, timeout=scan_timeout).read(4096) \
+                .decode("utf-8", "ignore")
+        except Exception:
+            return
+        if "MediaRenderer" not in xml:
+            return
+        with lock:
+            found.append({
+                "ip": ip,
+                "name": _friendly_name(xml) or ip,
+            })
+
+    threads = [threading.Thread(target=probe, args=("%s.%d" % (base, i),), daemon=True)
+               for i in range(1, 255)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(scan_timeout + 0.3)
+
+    pinned = STATE.get("tv_selected_ip")
+    for d in found:
+        d["alive"] = ping_once(d["ip"]) is not None
+        d["selected"] = (d["ip"] == pinned) if pinned else (d["ip"] == METRICS.get("tv_ip"))
+    found.sort(key=lambda d: d["ip"])
+    return found
+
+
+def select_renderer(ip):
+    """Fija a mano cuál TV controla el HUD. -> (ok, mensaje)."""
+    if not _process_desc("http://%s:9197/dmr" % ip):
+        return False, "No encontré un MediaRenderer en %s" % ip
+    STATE["tv_selected_ip"] = ip
+    _write_tv_cache(ip)
+    with _metrics_lock:
+        METRICS["tv_ip"] = ip
+        METRICS["tv_mac"] = arp_lookup(ip)
+    if METRICS["tv_mac"]:
+        _write_tv_mac_cache(METRICS["tv_mac"])
+    return True, "TV fijada: " + ip
+
+
 def _hms(seconds):
     seconds = max(0, int(seconds))
     return "%d:%02d:%02d" % (seconds // 3600, (seconds % 3600) // 60, seconds % 60)
@@ -705,16 +835,17 @@ def _tc_to_secs(tc):
         return None
 
 
-def tv_set_uri():
+def tv_set_uri(timeout=6):
     inner = ("<InstanceID>0</InstanceID><CurrentURI>%s</CurrentURI>"
              "<CurrentURIMetaData>%s</CurrentURIMetaData>"
              ) % (escape(media_url()), escape(didl_item()))
-    return _soap_call(TV_CTRL["control_url"], AVT_SERVICE, "SetAVTransportURI", inner)
+    return _soap_call(TV_CTRL["control_url"], AVT_SERVICE, "SetAVTransportURI", inner,
+                      timeout=timeout)
 
 
-def tv_play():
+def tv_play(timeout=6):
     return _soap_call(TV_CTRL["control_url"], AVT_SERVICE, "Play",
-                      "<InstanceID>0</InstanceID><Speed>1</Speed>")
+                      "<InstanceID>0</InstanceID><Speed>1</Speed>", timeout=timeout)
 
 
 def tv_pause():
@@ -751,13 +882,26 @@ def tv_position():
 
 
 def cast_to_tv(seek_s=0):
-    """Ordena al TV reproducir nuestro media y saltar a seek_s. -> (ok, mensaje)."""
-    if not discover_renderer():
-        return False, "No encontré el MediaRenderer del TV"
+    """Ordena al TV reproducir nuestro media y saltar a seek_s. -> (ok, mensaje).
+    La primera vez el TV puede mostrar un cuadro de 'permitir conexión' en pantalla
+    y no responde el SOAP hasta que el usuario lo acepta con el control remoto:
+    por eso el timeout generoso acá (no en los controles de play/pause normales)."""
+    if not _cast_lock.acquire(blocking=False):
+        return False, "Ya hay un cast en curso, espera un momento"
     try:
-        tv_set_uri()
+        if not discover_renderer():
+            # Puede estar realmente apagada (no solo standby): probamos WOL con
+            # la MAC conocida y esperamos a que la red responda antes de rendirnos.
+            ok_wake, msg_wake = wake_tv()
+            if not ok_wake:
+                return False, "No encontré el MediaRenderer del TV (%s)" % msg_wake
+            if not wait_tv_awake(timeout_s=20):
+                return False, "Mandé WOL pero el TV no respondió a tiempo (20s)"
+            if not discover_renderer():
+                return False, "El TV despertó pero no encontré su MediaRenderer"
+        tv_set_uri(timeout=25)
         time.sleep(0.4)
-        tv_play()
+        tv_play(timeout=25)
         if seek_s and seek_s > 0:
             # El Samsung rechaza Seek mientras carga (TRANSITIONING): esperar a PLAYING.
             for _ in range(12):
@@ -769,6 +913,8 @@ def cast_to_tv(seek_s=0):
         return True, "cast enviado"
     except Exception as e:
         return False, "%s: %s" % (type(e).__name__, e)
+    finally:
+        _cast_lock.release()
 
 
 def tv_get_volume():
@@ -828,6 +974,164 @@ def tv_send_key(key):
     return _soap_call(url, DIAL_SERVICE, "SendKeyCode", inner)
 
 
+# --------------- Apagado remoto (WebSocket "samsung.remote.control") -------
+# El AVTransport/DIAL de arriba no tiene forma de apagar (probamos KEY_POWER
+# por DIAL y el TV lo rechazó con 400). Los Samsung 2016+ exponen un canal de
+# control remoto aparte por WebSocket (puertos 8001 plano / 8002 TLS), con su
+# propio cuadro de "permitir conexión" la primera vez y un token que se
+# reusa después. Implementado a mano (handshake + framing) para no sumar una
+# dependencia — es stdlib puro, como el resto del proyecto.
+TV_WS_TOKEN_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_ws_token")
+WS_APP_NAME = "Mac DLNA Cast"
+
+
+def _read_ws_token():
+    try:
+        with open(TV_WS_TOKEN_CACHE) as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def _write_ws_token(token):
+    try:
+        with open(TV_WS_TOKEN_CACHE, "w") as f:
+            f.write(token)
+    except OSError:
+        pass
+
+
+class _WSConn:
+    """Cliente WebSocket mínimo (RFC 6455) solo con lo que necesitamos:
+    handshake de texto plano, frames de texto enmascarados al enviar."""
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.buf = b""
+
+    def _read_n(self, n):
+        while len(self.buf) < n:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("El TV cerró el socket WebSocket")
+            self.buf += chunk
+        data, self.buf = self.buf[:n], self.buf[n:]
+        return data
+
+    def send_text(self, text):
+        payload = text.encode("utf-8")
+        length = len(payload)
+        if length <= 125:
+            header = bytes([0x81, 0x80 | length])
+        elif length <= 0xFFFF:
+            header = bytes([0x81, 0x80 | 126]) + struct.pack(">H", length)
+        else:
+            header = bytes([0x81, 0x80 | 127]) + struct.pack(">Q", length)
+        mask_key = os.urandom(4)
+        masked = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
+        self.sock.sendall(header + mask_key + masked)
+
+    def recv_frame(self):
+        """-> (opcode, payload). Server->client no viene enmascarado."""
+        b0, b1 = self._read_n(2)
+        opcode = b0 & 0x0F
+        length = b1 & 0x7F
+        if length == 126:
+            length = struct.unpack(">H", self._read_n(2))[0]
+        elif length == 127:
+            length = struct.unpack(">Q", self._read_n(8))[0]
+        masked = bool(b1 & 0x80)
+        mask_key = self._read_n(4) if masked else b""
+        payload = self._read_n(length)
+        if masked:
+            payload = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
+        return opcode, payload
+
+
+def _ws_handshake(sock, host, port, path):
+    key = base64.b64encode(os.urandom(16)).decode()
+    req = (
+        "GET %s HTTP/1.1\r\nHost: %s:%d\r\nUpgrade: websocket\r\n"
+        "Connection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n"
+    ) % (path, host, port, key)
+    sock.sendall(req.encode())
+    resp = b""
+    while b"\r\n\r\n" not in resp:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise ConnectionError("El TV cerró la conexión durante el handshake WS")
+        resp += chunk
+    head, rest = resp.split(b"\r\n\r\n", 1)
+    if b" 101 " not in head.split(b"\r\n", 1)[0]:
+        raise ConnectionError("Handshake WS rechazado: %r" % head[:200])
+    conn = _WSConn(sock)
+    conn.buf = rest
+    return conn
+
+
+def _samsung_ws_connect(ip, port, use_ssl, token, timeout):
+    """Conecta al canal de control remoto y espera el evento de aprobación
+    ('ms.channel.connect'). -> (conn, token_nuevo_o_None) o lanza excepción."""
+    name_b64 = base64.b64encode(WS_APP_NAME.encode()).decode()
+    path = "/api/v2/channel/samsung.remote.control?name=%s" % name_b64
+    if token:
+        path += "&token=%s" % token
+    raw = socket.create_connection((ip, port), timeout=timeout)
+    if use_ssl:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        raw = ctx.wrap_socket(raw, server_hostname=ip)
+    conn = _ws_handshake(raw, ip, port, path)
+    raw.settimeout(timeout)
+    new_token = None
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        opcode, payload = conn.recv_frame()
+        if opcode == 0x8:  # close
+            raise ConnectionError("El TV cerró el canal de control remoto")
+        if opcode != 0x1:
+            continue
+        try:
+            msg = json.loads(payload.decode("utf-8", "ignore"))
+        except ValueError:
+            continue
+        if msg.get("event") == "ms.channel.connect":
+            new_token = (msg.get("data") or {}).get("token")
+            return conn, new_token
+        if msg.get("event") in ("ms.channel.unauthorized", "ms.channel.timeOut"):
+            raise ConnectionError("El TV rechazó la conexión (%s)" % msg.get("event"))
+    raise TimeoutError("El TV no respondió el cuadro de permiso a tiempo")
+
+
+def tv_power_off():
+    """Manda KEY_POWER por el canal WebSocket de control remoto. Primera vez
+    puede mostrar el cuadro de 'permitir conexión' en el TV. -> (ok, mensaje)."""
+    ip = (STATE.get("tv_selected_ip") or METRICS.get("tv_ip")
+          or os.environ.get("DLNA_TV_IP") or _read_tv_cache())
+    if not ip:
+        return False, "No tengo la IP del TV todavía"
+    token = _read_ws_token()
+    last_err = None
+    for port, use_ssl in ((8002, True), (8001, False)):
+        try:
+            conn, new_token = _samsung_ws_connect(ip, port, use_ssl, token, timeout=25)
+            if new_token and new_token != token:
+                _write_ws_token(new_token)
+            cmd = json.dumps({
+                "method": "ms.remote.control",
+                "params": {"Cmd": "Click", "DataOfCmd": "KEY_POWER",
+                           "Option": "false", "TypeOfRemote": "SendRemoteKey"},
+            })
+            conn.send_text(cmd)
+            time.sleep(0.3)
+            return True, "KEY_POWER enviado por WebSocket (%s%s)" % (port, " TLS" if use_ssl else "")
+        except Exception as e:
+            last_err = "%s: %s" % (type(e).__name__, e)
+            continue
+    return False, "No pude apagar por WebSocket: %s" % last_err
+
+
 # ------------------------- Biblioteca de videos ----------------------------
 def scan_library(root):
     """Escanea recursivamente 'root' por videos y devuelve la lista ordenada."""
@@ -884,8 +1188,9 @@ def set_library(path):
     return True, len(LIBRARY)
 
 
-def load_media(idx, and_cast=True):
-    """Cambia el video servido al de la biblioteca (idx) y lo castea al TV."""
+def load_media(idx):
+    """Cambia el video servido al de la biblioteca (idx). No castea (eso lo
+    hace el llamador, para poder reportar el resultado real del cast)."""
     if idx < 0 or idx >= len(LIBRARY):
         return False, "índice inválido"
     it = LIBRARY[idx]
@@ -907,10 +1212,6 @@ def load_media(idx, and_cast=True):
         STATE["duration_s"] = d
     threading.Thread(target=_dur, daemon=True).start()
 
-    if and_cast:
-        # El cast va en un hilo: SetURI+Play tarda varios segundos y no debe
-        # bloquear la respuesta de /api/load.
-        threading.Thread(target=cast_to_tv, args=(0,), daemon=True).start()
     return True, it["title"]
 
 
@@ -981,6 +1282,29 @@ class Handler(BaseHTTPRequestHandler):
             elif p == "/api/cast":
                 t = parse_timecode(q.get("seek", ["0"])[0]) or 0
                 ok, msg = cast_to_tv(t); self._api_json({"ok": ok, "msg": msg})
+            elif p == "/api/tvs":
+                self._api_json({"items": list_renderers(),
+                                "pinned": STATE.get("tv_selected_ip")})
+            elif p == "/api/tvs/select":
+                ip = q.get("ip", [""])[0]
+                if not ip:
+                    self._api_json({"ok": False, "error": "falta ip"})
+                else:
+                    TV_CTRL["control_url"] = None
+                    TV_CTRL["rc_url"] = None
+                    ok, msg = select_renderer(ip)
+                    self._api_json({"ok": ok, "msg": msg})
+            elif p == "/api/tvoff":
+                ok, msg = tv_power_off()
+                self._api_json({"ok": ok, "msg": msg})
+            elif p == "/api/wake":
+                ok, msg = wake_tv()
+                if ok:
+                    awake = wait_tv_awake(timeout_s=20)
+                    msg = "TV respondiendo" if awake else "WOL enviado, TV no respondió en 20s"
+                    self._api_json({"ok": awake, "msg": msg})
+                else:
+                    self._api_json({"ok": False, "msg": msg})
             elif p == "/api/tvpos":
                 rel, dur, st = tv_position()
                 self._api_json({
@@ -996,7 +1320,13 @@ class Handler(BaseHTTPRequestHandler):
                     "root": STATE.get("lib_root")})
             elif p == "/api/load":
                 ok, msg = load_media(int(q.get("id", ["-1"])[0]))
-                self._api_json({"ok": ok, "msg": msg})
+                if not ok:
+                    self._api_json({"ok": False, "msg": msg})
+                else:
+                    # Cast síncrono: así el HUD recibe el resultado real (incluido
+                    # el caso "TV apagada/pidiendo permiso"), no un éxito a ciegas.
+                    cast_ok, cast_msg = cast_to_tv(0)
+                    self._api_json({"ok": cast_ok, "title": msg, "msg": cast_msg})
             elif p == "/api/volume":
                 if "delta" in q:
                     lvl = (tv_get_volume() or 0) + int(q["delta"][0])
@@ -1232,6 +1562,27 @@ def ssdp_server(stop_event):
     sock.close()
 
 
+def network_watch_thread(stop_event):
+    """Si la IP local cambia (cambio de red/banda WiFi), los sockets SSDP y el
+    anuncio quedan atados a la IP vieja y el TV deja de encontrarnos. En vez de
+    perseguir el rebind de cada socket multicast, reejecutamos el proceso entero
+    con el mismo argv: recupera un estado limpio en <1s. Exige ver la MISMA IP
+    nueva dos chequeos seguidos, para no reiniciar por un blip transitorio de DHCP."""
+    known_ip = STATE["ip"]
+    pending_ip = None
+    while not stop_event.wait(5):
+        cur = get_local_ip()
+        if cur == "127.0.0.1" or cur == known_ip:
+            pending_ip = None
+            continue
+        if cur == pending_ip:
+            print("  [RED] IP cambió de %s a %s — reiniciando para adaptarse..."
+                  % (known_ip, cur), flush=True)
+            cleanup_temp()
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        pending_ip = cur
+
+
 def ssdp_announcer(stop_event):
     """Envía NOTIFY ssdp:alive periódicamente para que el TV nos encuentre."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -1327,6 +1678,7 @@ def main():
     STATE["title"] = os.path.splitext(os.path.basename(src))[0]
     STATE["mime"] = MIME_MAP.get(os.path.splitext(serve_path)[1].lower(), "video/mp4")
     METRICS["start_time"] = time.time()
+    METRICS["tv_mac"] = _read_tv_mac_cache()
 
     # Las duraciones (ffprobe) se calculan en segundo plano para NO retrasar el
     # arranque del stream: el server sirve al instante y el HUD las llena en ~1s.
@@ -1342,6 +1694,7 @@ def main():
     threads = [
         threading.Thread(target=httpd.serve_forever, daemon=True),
         threading.Thread(target=tv_health_thread, args=(stop_event,), daemon=True),
+        threading.Thread(target=network_watch_thread, args=(stop_event,), daemon=True),
     ]
     if not NO_SSDP:
         threads.append(threading.Thread(target=ssdp_server, args=(stop_event,), daemon=True))

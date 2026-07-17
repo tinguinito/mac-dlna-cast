@@ -7,8 +7,10 @@ server.log
 .DS_Store
 __pycache__/
 *.pyc
-# IP del TV cacheada (local)
+# IP/MAC/token del TV cacheados (locales)
 .dlna_tv_ip
+.dlna_tv_mac
+.dlna_tv_ws_token
 
 # Perfil de estilo de decisión (personal — no va al repo público)
 docs/referencia/estilo-decisiones-usuario.*.md
