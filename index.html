@@ -1,4 +1,4 @@
-<title>Mac DLNA Cast — tu Mac como fuente de video para el TV Samsung, con HUD de Iron Man</title>
+<title>Mac DLNA Cast — mira los videos de tu Mac en la tele, sin cables y sin apps en el TV</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta charset="utf-8">
 <style>
@@ -124,20 +124,26 @@
   <div class="hero">
     <div class="reactor"><span class="ring"></span><span class="ring mid"></span><span class="core"></span></div>
     <div class="eyebrow">Mac DLNA Cast</div>
-    <h1>Tu Mac, fuente de video del TV.<br>Con HUD de Iron Man.</h1>
-    <div class="tag">Reproduce los videos de tu Mac en un <span class="cyan">TV Samsung</span> por WiFi,
-    sin cables, sin nube y sin instalar nada en el televisor. Se controla desde un
-    <span class="cyan">panel estilo Stark</span> en el navegador — también desde el teléfono.</div>
+    <h1>Mira los videos de tu Mac<br>en la tele. Sin cables.</h1>
+    <div class="tag">Abres la app, eliges la película y aparece en tu <span class="cyan">TV Samsung</span>.
+    Nada que instalar en el televisor, nada que subir a internet. Y de regalo: un
+    <span class="cyan">control remoto estilo Iron Man</span> que funciona desde el navegador — incluso
+    desde tu teléfono.</div>
     <div><span class="badge">Beta abierta · macOS · se agradece feedback</span></div>
   </div>
 
   <!-- Qué es -->
   <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
     <div class="lead">01 · Qué es</div>
-    <h2>Un servidor DLNA con panel de mando</h2>
-    <p>El Mac se convierte en un <strong>servidor de medios DLNA/UPnP</strong> que el TV ve como una fuente
-    más. Encima corre un <strong>HUD web</strong> con biblioteca de videos, cast con un clic, play/pausa,
-    salto de tiempo, volumen y telemetría del stream en vivo. El video nunca sale de tu red local.</p>
+    <h2>Tu tele ya sabe hacer esto — solo faltaba quien le hablara</h2>
+    <p>Los televisores Samsung vienen de fábrica con la capacidad de <strong>recibir video por
+    WiFi</strong> (un estándar llamado DLNA, el mismo de "AllShare"). Esta app enseña a tu Mac a
+    hablar ese idioma: el TV lo ve como una fuente más, igual que un pendrive o un decodificador.</p>
+    <p>Encima trae un <strong>panel de control</strong> en el navegador: tu lista de videos, un botón
+    para <em>enviar a la tele</em>, pausa, adelantar, volumen — y hasta un medidor en vivo de cómo
+    viaja la película por tu WiFi. Todo queda <strong>dentro de tu casa</strong>: el video nunca
+    sale a internet.</p>
+    <p class="muted" style="margin-top:14px">Para curiosos técnicos, el motor bajo el capó:</p>
     <div class="chips">
       <span class="chip">Python 3 · stdlib</span><span class="chip">DLNA / UPnP</span>
       <span class="chip">SOAP · AVTransport</span><span class="chip">HUD · 0 dependencias</span>
@@ -151,63 +157,68 @@
     <h2>Instalación (beta para Mac)</h2>
     <h3>Necesitas</h3>
     <ul class="plain">
-      <li>Un <strong>Mac</strong> con <code>python3</code> (si no lo tienes: <code>brew install python</code>).</li>
-      <li>Un <strong>TV Samsung</strong> con DLNA (la mayoría desde ~2012) <strong>en la misma red WiFi</strong>.</li>
+      <li>Un <strong>Mac</strong> con Python 3 (si no lo tienes: <code>brew install python</code>).</li>
+      <li>Un <strong>TV Samsung</strong> de ~2012 en adelante, <strong>conectado a la misma red WiFi</strong> que el Mac.</li>
     </ul>
-    <h3>Instalar</h3>
+    <h3>Instalar (2 comandos, solo la primera vez)</h3>
+    <p class="muted">Por ahora se instala copiando y pegando esto en la Terminal — la versión
+    "descargar y listo" viene en camino (sección Pronto):</p>
     <pre><code><span class="cmt"># 1. Descarga el proyecto</span>
 git clone https://github.com/tinguinito/mac-dlna-cast.git
 cd mac-dlna-cast
 
-<span class="cmt"># 2. Corre el instalador (crea la app y la deja en /Applications)</span>
+<span class="cmt"># 2. Corre el instalador (crea la app y la deja en Aplicaciones)</span>
 ./instalar.sh</code></pre>
-    <p class="muted">El instalador genera la app <strong>"Mac DLNA Cast"</strong> en tu carpeta Aplicaciones.
-    No muevas ni borres la carpeta del repo: la app corre desde ahí.</p>
-    <h3>Modo terminal (alternativa sin instalar)</h3>
-    <pre><code>python3 server_dlna.py ~/Movies    <span class="cmt"># sirve tu carpeta de videos</span></code></pre>
+    <p class="muted">Eso deja la app <strong>"Mac DLNA Cast"</strong> en tu carpeta Aplicaciones,
+    lista para abrir como cualquier otra. No muevas ni borres la carpeta descargada: la app
+    corre desde ahí.</p>
+    <h3>¿Prefieres la terminal?</h3>
+    <pre><code>python3 server_dlna.py ~/Movies    <span class="cmt"># comparte tu carpeta de videos, sin instalar nada</span></code></pre>
   </div>
 
   <!-- Cómo se usa -->
   <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
     <div class="lead">03 · Cómo se usa</div>
-    <h2>Abrir, elegir video, y a la tele</h2>
+    <h2>Abrir, elegir película, y a la tele</h2>
     <ol class="steps">
       <li><strong>Abre la app</strong>: Spotlight (⌘-espacio → "Mac DLNA") o doble clic en Aplicaciones.
-        Verás un <em>televisor 📺 en el Dock</em>.</li>
-      <li>La app <strong>levanta el servidor y abre el HUD sola</strong> en tu navegador (~2 s).
-        Un clic en el ícono del Dock vuelve a abrirlo cuando quieras.</li>
-      <li>En el HUD, elige un video de la <strong>biblioteca</strong> y presiona <strong>cast</strong>.
-        El TV se enciende solo si está en reposo (Wake-on-LAN); la primera vez te pedirá
-        <em>permitir la conexión</em> con el control remoto — solo esa vez.</li>
-      <li>Controla todo desde el HUD: <strong>play, pausa, salto, volumen</strong>. Ábrelo también en el
-        teléfono (misma URL) y úsalo de control remoto.</li>
-      <li>Para apagar: clic derecho en el ícono del Dock → <strong>Salir</strong>. Se detiene el servidor
-        completo (la pestaña del HUD queda abierta en el navegador y mostrará "sin conexión" — ciérrala tú).</li>
+        Aparece un <em>televisor 📺 en el Dock</em>.</li>
+      <li>La app se prepara sola y en un par de segundos <strong>abre el panel de control</strong> en tu
+        navegador. Un clic en el 📺 del Dock lo vuelve a abrir cuando quieras.</li>
+      <li>Elige un video de tu <strong>biblioteca</strong> y presiona <strong>enviar a la tele</strong>.
+        Si el TV está en reposo, se enciende solo. La primera vez el televisor pide
+        <em>permitir la conexión</em> con el control remoto — solo esa única vez.</li>
+      <li>Desde el panel controlas todo: <strong>pausa, adelantar, volumen</strong>. Ábrelo también en el
+        teléfono (misma dirección) y úsalo de control remoto desde el sillón.</li>
+      <li>Para apagar: clic derecho en el 📺 del Dock → <strong>Salir</strong>. Todo se detiene
+        (la pestaña del panel queda abierta en el navegador y mostrará "sin conexión" — ciérrala tú).</li>
     </ol>
-    <p class="muted">¿Videos en otra carpeta? Menú 📺 (barra de menú, si hay espacio) → "Elegir carpeta de videos…",
-    o lanza por terminal apuntando a la carpeta que quieras.</p>
+    <p class="muted">¿Tus videos están en otra carpeta? Menú 📺 → "Elegir carpeta de videos…"
+    y listo.</p>
   </div>
 
   <!-- Pronto -->
   <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
     <div class="lead">04 · Pronto</div>
     <h2>Lo que se viene: app para todas las plataformas</h2>
-    <p>La beta actual corre desde el repo y requiere <code>python3</code>. La próxima fase elimina
-    ambas cosas: una <strong>app de escritorio real</strong>, con la estrategia de las apps nativas
-    modernas (Tauri: núcleo Rust + interfaz web).</p>
+    <p>La beta de hoy hay que descargarla con un par de comandos. La próxima fase la convierte en
+    una <strong>app de escritorio de verdad</strong>: bajar un archivo, arrastrar a Aplicaciones,
+    usar. Igual que cualquier app que ya conoces.</p>
     <ul class="tl">
-      <li class="done"><div class="step"><span class="ok">Hecho</span> · Servidor + HUD</div>
-        <div class="body">DLNA, biblioteca, control total del TV, telemetría, auto-detección del televisor.</div></li>
+      <li class="done"><div class="step"><span class="ok">Hecho</span> · El motor</div>
+        <div class="body">El Mac le pasa video a la tele, con biblioteca, control total y detección
+        automática del televisor.</div></li>
       <li class="done"><div class="step"><span class="ok">Hecho</span> · App para Mac (beta)</div>
-        <div class="body">Doble clic, ícono en el Dock, HUD que se abre solo, instalador en un comando.</div></li>
-      <li><div class="step">Siguiente · Instalador universal</div>
-        <div class="body"><strong>Descargar y listo</strong>: .dmg para macOS, instalador para Windows y
-        AppImage/deb para Linux. Sin Python, sin terminal, sin repo — el servidor va compilado adentro.</div></li>
-      <li><div class="step">Siguiente · App de verdad</div>
-        <div class="body">El HUD en su <strong>propia ventana</strong> (se cierra con la app), arranque
-        automático al iniciar sesión, una sola instancia, y <strong>actualizaciones automáticas</strong>.</div></li>
+        <div class="body">Doble clic, ícono en el Dock, panel que se abre solo, instalador en un comando.</div></li>
+      <li><div class="step">Siguiente · Descargar y listo</div>
+        <div class="body">Instalador normal para <strong>macOS, Windows y Linux</strong>. Sin comandos,
+        sin requisitos previos — todo lo necesario viene adentro.</div></li>
+      <li><div class="step">Siguiente · App completa</div>
+        <div class="body">El panel en su <strong>propia ventana</strong> (se cierra con la app), arranque
+        automático al prender el computador, y <strong>actualizaciones automáticas</strong>.</div></li>
       <li><div class="step">Explorando · Más televisores</div>
-        <div class="body">DLNA es estándar: probar y ajustar con LG, Sony y otros que expongan MediaRenderer.</div></li>
+        <div class="body">El estándar que usa Samsung también lo hablan LG, Sony y otros — probar y
+        ajustar marca por marca.</div></li>
     </ul>
   </div>
 
