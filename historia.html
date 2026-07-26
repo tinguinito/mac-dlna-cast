@@ -1,6 +1,4 @@
-<title>Mac DLNA Cast — tu Mac como fuente de video para el TV Samsung, con HUD de Iron Man</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta charset="utf-8">
+<title>Del Mark I al Mark III — un HUD de Iron Man para mi TV, hecho mientras veía Iron Man</title>
 <style>
   :root{
     --bg0:#05080f; --bg1:#0a0f1a; --panel:rgba(10,18,32,.72);
@@ -38,11 +36,8 @@
     text-shadow:0 0 24px rgba(255,212,71,.32);
   }
   .hero .tag{display:inline-block;margin-top:10px;font-size:14px;color:var(--txt);
-    max-width:620px;line-height:1.75}
+    max-width:600px;line-height:1.75}
   .hero .cyan{color:var(--cyan)}
-  .badge{display:inline-block;margin-top:16px;font-size:11px;letter-spacing:.22em;
-    text-transform:uppercase;color:var(--green);border:1px solid rgba(84,255,176,.35);
-    background:rgba(84,255,176,.07);border-radius:20px;padding:6px 16px}
 
   /* Arc reactor mark */
   .reactor{width:96px;height:96px;margin:0 auto 8px;position:relative}
@@ -69,35 +64,29 @@
     display:flex;align-items:center;gap:10px;margin-bottom:16px}
   .lead::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
   h2{font-size:19px;letter-spacing:.03em;color:var(--cyan);margin-bottom:10px;text-wrap:balance}
-  h3{font-size:14px;letter-spacing:.06em;color:var(--gold);margin:18px 0 6px;text-transform:uppercase}
   p{font-size:14px;color:var(--txt);margin:10px 0}
   .muted{color:var(--dim)}
   strong{color:var(--gold);font-weight:600}
   em{color:var(--cyan);font-style:normal}
-  ol.steps{margin:10px 0 4px 22px}
-  ol.steps li{font-size:14px;padding:4px 0}
-  ul.plain{margin:10px 0 4px 22px}
-  ul.plain li{font-size:14px;padding:4px 0}
 
-  /* Code blocks */
-  pre{background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:6px;
-    padding:14px 16px;overflow-x:auto;margin:10px 0;font-size:13px;line-height:1.6}
-  pre code{color:var(--green);font-family:var(--mono)}
-  code{color:var(--cyan);font-family:var(--mono);font-size:13px}
-  .cmt{color:var(--dim)}
-
-  /* Roadmap */
+  /* Timeline */
   .tl{list-style:none;position:relative;margin:8px 0 4px;padding-left:26px}
   .tl::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;
     background:linear-gradient(var(--cyan),rgba(79,210,255,.15))}
   .tl li{position:relative;padding:0 0 20px 6px}
   .tl li::before{content:"";position:absolute;left:-24px;top:5px;width:12px;height:12px;border-radius:50%;
     background:var(--bg0);border:2px solid var(--cyan);box-shadow:0 0 10px rgba(79,210,255,.7)}
-  .tl li.done::before{background:var(--green);border-color:var(--green);box-shadow:0 0 10px rgba(84,255,176,.7)}
   .tl li:last-child{padding-bottom:0}
   .tl .step{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
-  .tl .step .ok{color:var(--green)}
   .tl .body{font-size:14px;margin-top:3px;color:var(--txt)}
+  .tl .film{font-size:12px;color:var(--dim);margin-top:4px;font-style:italic}
+  .tl .film::before{content:"🎬 ";font-style:normal}
+
+  /* Quote / human moment */
+  .quote{border-left:3px solid var(--gold);background:rgba(255,212,71,.05);
+    padding:16px 20px;border-radius:0 6px 6px 0;margin:6px 0}
+  .quote p{font-size:15.5px;color:#fff;margin:0}
+  .quote .who{font-size:11px;color:var(--dim);letter-spacing:.16em;text-transform:uppercase;margin-top:8px;display:block}
 
   /* Stack chips */
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
@@ -123,110 +112,93 @@
 
   <div class="hero">
     <div class="reactor"><span class="ring"></span><span class="ring mid"></span><span class="core"></span></div>
-    <div class="eyebrow">Mac DLNA Cast</div>
-    <h1>Tu Mac, fuente de video del TV.<br>Con HUD de Iron Man.</h1>
-    <div class="tag">Reproduce los videos de tu Mac en un <span class="cyan">TV Samsung</span> por WiFi,
-    sin cables, sin nube y sin instalar nada en el televisor. Se controla desde un
-    <span class="cyan">panel estilo Stark</span> en el navegador — también desde el teléfono.</div>
-    <div><span class="badge">Beta abierta · macOS · se agradece feedback</span></div>
+    <div class="eyebrow">Un proyecto de una sola noche</div>
+    <h1>Le construí a mi TV el HUD de Iron Man…<br>mientras veía Iron Man con mi hijo</h1>
+    <div class="tag">Quería ver una película en la tele. Terminé con un <span class="cyan">servidor propio</span>,
+    un panel de control estilo <span class="cyan">Stark</span> en el navegador, y a mi hijo con un reactor ARC
+    latiendo en su mano. Todo en vivo, sin cortar la peli. Esta es la historia.</div>
   </div>
 
-  <!-- Qué es -->
+  <!-- El problema -->
   <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
-    <div class="lead">01 · Qué es</div>
-    <h2>Un servidor DLNA con panel de mando</h2>
-    <p>El Mac se convierte en un <strong>servidor de medios DLNA/UPnP</strong> que el TV ve como una fuente
-    más. Encima corre un <strong>HUD web</strong> con biblioteca de videos, cast con un clic, play/pausa,
-    salto de tiempo, volumen y telemetría del stream en vivo. El video nunca sale de tu red local.</p>
+    <div class="lead">00 · La cueva</div>
+    <h2>Todo empezó con un "no se puede"</h2>
+    <p>Sábado por la noche. La misión: ver <em>Iron Man (2008)</em> con mi hijo, desde un
+    <strong>MacBook</strong> a la <strong>tele Samsung</strong>, por WiFi. Suena trivial… hasta que AirPlay se
+    plantó: QuickTime conectaba con la tele pero el video nunca arrancaba — un bug conocido de ese modelo.
+    VLC tampoco. El pendrive USB era el plan B aburrido.</p>
+    <p>En vez de rendirme, abrí <strong>Claude Code</strong> y dije: <em>"construyamos algo".</em> Y no paramos
+    hasta los créditos.</p>
+  </div>
+
+  <!-- El viaje -->
+  <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="lead">01 · Forjando el traje</div>
+    <h2>Del "no arranca" al mando total — en tiempo real</h2>
+    <ul class="tl">
+      <li><div class="step">Mark I · el servidor</div>
+        <div class="body">Un <strong>servidor DLNA en Python puro</strong> (sin una sola dependencia). La tele lo vio
+        como una fuente más y reprodujo el archivo con su reproductor nativo. Video en pantalla.</div>
+        <div class="film">Tony arma su primer prototipo en la cueva. Nosotros, el nuestro.</div></li>
+      <li><div class="step">El HUD</div>
+        <div class="body">Un panel web estilo <strong>Iron Man</strong>: reactor ARC, gráfico de transferencia en vivo,
+        telemetría del stream. Verlo funcionar es la mitad de la magia.</div></li>
+      <li><div class="step">El misterio del buffering</div>
+        <div class="body">Se recargaba. No era el M1, ni la RAM, ni Starlink. Medimos y encontramos al culpable:
+        <strong>el airtime del WiFi de 2.4 GHz</strong>. Pasamos el Mac a <strong>5 GHz</strong> → fluido como seda.
+        <span class="muted">Diagnóstico por evidencia, no por corazonada.</span></div>
+        <div class="film">Los cazas persiguen a Iron Man. Nosotros perseguíamos la causa raíz.</div></li>
+      <li><div class="step">Mark II · control</div>
+        <div class="body">No solo <em>ver</em> — <strong>controlar</strong>. La tele exponía un servicio oculto (AVTransport),
+        así que sumamos <strong>play, pausa y salto de tiempo desde el navegador</strong>, con la posición real leída del televisor.</div></li>
+      <li><div class="step">Mark III · biblioteca + UX</div>
+        <div class="body">Biblioteca navegable para elegir cualquier peli con un click, tooltips que explican cada panel,
+        y una limpieza de diseño. Un mando de Stark, de verdad usable.</div>
+        <div class="film">Tony perfecciona el Mark III. Coincidencia poética.</div></li>
+    </ul>
+  </div>
+
+  <!-- El momento humano -->
+  <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="lead">02 · El reactor</div>
+    <h2>La parte que no era código</h2>
+    <div class="quote">
+      <p>"Mi hijo vio el reactor ARC latiendo en el iPhone y no lo podía creer."</p>
+      <span class="who">— el mejor commit de la noche</span>
+    </div>
+    <p>El HUD funciona en cualquier dispositivo de la red, así que el <strong>iPhone se volvió un control remoto de Iron Man</strong>
+    en sus manos. Y terminamos de pulir justo cuando en pantalla Tony dice las cuatro palabras: <em>"I am Iron Man".</em></p>
+  </div>
+
+  <!-- Stack -->
+  <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
+    <div class="lead">03 · Bajo el capó</div>
+    <h2>Sin frameworks, sin nube, sin cables</h2>
+    <p>Todo corre en el Mac, en la red local. El video nunca sale a internet.</p>
     <div class="chips">
       <span class="chip">Python 3 · stdlib</span><span class="chip">DLNA / UPnP</span>
-      <span class="chip">SOAP · AVTransport</span><span class="chip">HUD · 0 dependencias</span>
-      <span class="chip">100% red local</span>
+      <span class="chip">SSDP</span><span class="chip">HTTP byte-range</span>
+      <span class="chip">SOAP · AVTransport</span><span class="chip">HTML/CSS/JS · 0 deps</span>
+      <span class="chip">ffmpeg (opcional)</span><span class="chip">Claude Code</span>
     </div>
-  </div>
-
-  <!-- Instalar -->
-  <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
-    <div class="lead">02 · Pruébalo</div>
-    <h2>Instalación (beta para Mac)</h2>
-    <h3>Necesitas</h3>
-    <ul class="plain">
-      <li>Un <strong>Mac</strong> con <code>python3</code> (si no lo tienes: <code>brew install python</code>).</li>
-      <li>Un <strong>TV Samsung</strong> con DLNA (la mayoría desde ~2012) <strong>en la misma red WiFi</strong>.</li>
-    </ul>
-    <h3>Instalar</h3>
-    <pre><code><span class="cmt"># 1. Descarga el proyecto</span>
-git clone https://github.com/tinguinito/mac-dlna-cast.git
-cd mac-dlna-cast
-
-<span class="cmt"># 2. Corre el instalador (crea la app y la deja en /Applications)</span>
-./instalar.sh</code></pre>
-    <p class="muted">El instalador genera la app <strong>"Mac DLNA Cast"</strong> en tu carpeta Aplicaciones.
-    No muevas ni borres la carpeta del repo: la app corre desde ahí.</p>
-    <h3>Modo terminal (alternativa sin instalar)</h3>
-    <pre><code>python3 server_dlna.py ~/Movies    <span class="cmt"># sirve tu carpeta de videos</span></code></pre>
-  </div>
-
-  <!-- Cómo se usa -->
-  <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
-    <div class="lead">03 · Cómo se usa</div>
-    <h2>Abrir, elegir video, y a la tele</h2>
-    <ol class="steps">
-      <li><strong>Abre la app</strong>: Spotlight (⌘-espacio → "Mac DLNA") o doble clic en Aplicaciones.
-        Verás un <em>televisor 📺 en el Dock</em>.</li>
-      <li>La app <strong>levanta el servidor y abre el HUD sola</strong> en tu navegador (~2 s).
-        Un clic en el ícono del Dock vuelve a abrirlo cuando quieras.</li>
-      <li>En el HUD, elige un video de la <strong>biblioteca</strong> y presiona <strong>cast</strong>.
-        El TV se enciende solo si está en reposo (Wake-on-LAN); la primera vez te pedirá
-        <em>permitir la conexión</em> con el control remoto — solo esa vez.</li>
-      <li>Controla todo desde el HUD: <strong>play, pausa, salto, volumen</strong>. Ábrelo también en el
-        teléfono (misma URL) y úsalo de control remoto.</li>
-      <li>Para apagar: clic derecho en el ícono del Dock → <strong>Salir</strong>. Se detiene el servidor
-        completo (la pestaña del HUD queda abierta en el navegador y mostrará "sin conexión" — ciérrala tú).</li>
-    </ol>
-    <p class="muted">¿Videos en otra carpeta? Menú 📺 (barra de menú, si hay espacio) → "Elegir carpeta de videos…",
-    o lanza por terminal apuntando a la carpeta que quieras.</p>
-  </div>
-
-  <!-- Pronto -->
-  <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
-    <div class="lead">04 · Pronto</div>
-    <h2>Lo que se viene: app para todas las plataformas</h2>
-    <p>La beta actual corre desde el repo y requiere <code>python3</code>. La próxima fase elimina
-    ambas cosas: una <strong>app de escritorio real</strong>, con la estrategia de las apps nativas
-    modernas (Tauri: núcleo Rust + interfaz web).</p>
-    <ul class="tl">
-      <li class="done"><div class="step"><span class="ok">Hecho</span> · Servidor + HUD</div>
-        <div class="body">DLNA, biblioteca, control total del TV, telemetría, auto-detección del televisor.</div></li>
-      <li class="done"><div class="step"><span class="ok">Hecho</span> · App para Mac (beta)</div>
-        <div class="body">Doble clic, ícono en el Dock, HUD que se abre solo, instalador en un comando.</div></li>
-      <li><div class="step">Siguiente · Instalador universal</div>
-        <div class="body"><strong>Descargar y listo</strong>: .dmg para macOS, instalador para Windows y
-        AppImage/deb para Linux. Sin Python, sin terminal, sin repo — el servidor va compilado adentro.</div></li>
-      <li><div class="step">Siguiente · App de verdad</div>
-        <div class="body">El HUD en su <strong>propia ventana</strong> (se cierra con la app), arranque
-        automático al iniciar sesión, una sola instancia, y <strong>actualizaciones automáticas</strong>.</div></li>
-      <li><div class="step">Explorando · Más televisores</div>
-        <div class="body">DLNA es estándar: probar y ajustar con LG, Sony y otros que expongan MediaRenderer.</div></li>
-    </ul>
+    <p class="muted" style="margin-top:14px">Dos archivos: un servidor y un HUD. Se levanta con un comando.
+    Todo el proceso, documentado.</p>
   </div>
 
   <!-- Links -->
   <div class="panel"><span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br br2"></span>
-    <div class="lead">05 · El taller</div>
-    <h2>Código, manual e historia</h2>
+    <div class="lead">04 · El taller</div>
+    <h2>Míralo, léelo, úsalo</h2>
     <div class="links">
-      <a class="btn" href="https://github.com/tinguinito/mac-dlna-cast">⌥ Código en GitHub</a>
       <a class="btn gold" href="guia_arranque.html">📖 Manual de arranque</a>
-      <a class="btn" href="historia.html">🎬 La historia (se hizo viendo Iron Man)</a>
+      <a class="btn" href="https://github.com/tinguinito/mac-dlna-cast">⌥ Código en GitHub</a>
     </div>
-    <p class="muted" style="margin-top:14px">¿Lo probaste? Abre un
-    <a href="https://github.com/tinguinito/mac-dlna-cast/issues" style="color:var(--cyan)">issue en GitHub</a>
-    con lo que funcionó y lo que no — esta beta existe para eso.</p>
+    <p class="muted" style="margin-top:14px">El HUD (<code>hud.html</code>) se sirve desde el propio servidor mientras corre;
+    ábrelo en <code>http://&lt;tu-mac&gt;:8200/hud</code>.</p>
   </div>
 
   <div class="foot">
-    Nació una noche cualquiera, con un MacBook, una tele terca, y <a href="https://claude.com/claude-code">Claude Code</a>.<br>
+    Hecho una noche cualquiera, con un MacBook, una tele terca, y <a href="https://claude.com/claude-code">Claude Code</a>.<br>
     Por <a href="https://github.com/tinguinito">tinguinito</a> · Python puro, cero dependencias.
     <span class="jarvis">"Sistemas en verde, señor. Que disfrute la función." — J.A.R.V.I.S.</span>
     <div class="disc">Proyecto personal y homenaje. Iron Man, J.A.R.V.I.S. y Stark Industries son marcas de Marvel;

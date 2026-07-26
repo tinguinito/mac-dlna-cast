@@ -14,3 +14,8 @@ __pycache__/
 
 # Perfil de estilo de decisión (personal — no va al repo público)
 docs/referencia/estilo-decisiones-usuario.*.md
+
+# Fase B — launcher nativo (generados por instalar.sh, locales a cada máquina)
+.venv-menubar/
+.dlna_menubar.json
+Mac DLNA Cast.app/

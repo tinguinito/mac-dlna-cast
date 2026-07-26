@@ -3,6 +3,48 @@
 Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 Sin versionado formal por tags todavía — cada entrada es una sesión de trabajo.
 
+## [0.4.0] - 2026-07-26
+
+Fase B del plan "menos fricción": la primera versión que se usa **sin
+terminal** — app nativa de macOS que levanta el servidor con doble clic.
+Estrategia inspirada en Handy (Rust+Tauri): app instalable, autoarranque del
+flujo completo, cero comandos. La fase C (Tauri + servidor compilado como
+sidecar, instalador multiplataforma) queda planificada en la página del
+proyecto.
+
+### Agregado
+- **`menubar_dlna.py`** — launcher nativo (rumps/PyObjC en venv dedicado
+  `.venv-menubar`; el servidor sigue siendo stdlib pura). Ícono 📺 en Dock y
+  barra de menú, inicia/detiene/reinicia el servidor, "Elegir carpeta de
+  videos…" con diálogo nativo (persiste en `.dlna_menubar.json`), abre el
+  HUD solo al arrancar y con un clic en el Dock.
+- **`instalar.sh`** — instalador de un comando: crea el venv, genera el
+  bundle "Mac DLNA Cast.app" con rutas de esa copia del repo y lo deja en
+  `/Applications` (fallback `~/Applications`).
+- **Página del proyecto (GitHub Pages)** — `index.html` ahora es la página
+  de producto: qué es, instalación de la beta, cómo se usa, y roadmap
+  "Pronto" (app multiplataforma). La narrativa original se movió a
+  `historia.html`.
+
+### Arreglado
+- **Server huérfano al salir por el Dock/⌘Q.** El "Salir" nativo de macOS no
+  pasaba por el ítem de menú propio y el servidor quedaba corriendo sin app.
+  Ahora la detención va enganchada a `before_quit` de rumps
+  (`applicationWillTerminate`), que cubre Dock, ⌘Q y logout.
+- **Ícono fantasma de Python en el Dock** al lanzar como agente: el launcher
+  re-ejecuta el `Python.app` del framework y macOS ignora el `LSUIElement`
+  del bundle propio. (Terminó siendo irrelevante: se adoptó modo Dock.)
+- **Prompt de notificaciones de rumps** anulado (registraba un centro de
+  notificaciones que no se usa).
+
+### Aprendido (para la fase C)
+- **macOS oculta el status item globalmente** cuando la barra del display
+  principal (notch) está llena — sin API para forzarlo, ni siquiera con
+  `NSStatusItem Preferred Position` persistido. Verificado por accesibilidad:
+  el ítem existe y su menú funciona, pero queda en posición placeholder
+  `(-1, …)` y no aparece en ningún monitor. Conclusión de diseño: el tray es
+  conveniencia, nunca el único punto de acceso — Dock/ventana primero.
+
 ## [0.3.0] - 2026-07-16
 
 Sesión enfocada en confiabilidad de red y control remoto del TV (encendido,
