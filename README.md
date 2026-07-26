@@ -18,7 +18,24 @@ reproducción (play/pausa/seek/volumen) desde el navegador.
 
 ---
 
-## 2. Cómo levantar el server (3 formas)
+## 2. Cómo levantar el server (4 formas)
+
+### ⭐ Sin terminal: la app "Mac DLNA Cast" (beta, recomendada)
+
+Instalación de un comando (solo la primera vez):
+
+```bash
+./instalar.sh
+```
+
+Deja la app **"Mac DLNA Cast"** en `/Applications`. Ábrela con Spotlight
+(⌘-espacio → "Mac DLNA") o doble clic: levanta el server con tu carpeta de
+videos y **abre el HUD solo** en el navegador. Clic en el ícono 📺 del Dock =
+reabrir el HUD; clic derecho → Salir = detiene todo. Cambiar la carpeta de
+videos: menú 📺 de la barra → "Elegir carpeta de videos…". No muevas la
+carpeta del repo: la app corre desde aquí.
+
+Las 3 formas por terminal siguen funcionando igual:
 
 Desde la carpeta del proyecto (`/Users/tu-usuario/my_bucket/server_samsung`):
 
