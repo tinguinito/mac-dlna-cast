@@ -39,13 +39,18 @@ Qué aporta Tauri (estrategia copiada de Handy, con la lección de fase B):
 
 ## Etapas y gates
 
-### C0 · Cimientos — `pendiente`
-- Portabilidad de `server_dlna.py`: `ping`/`arp` por SO (Windows: `ping -n -w`,
-  `arp -a`; Linux: `ping -c -W`). Superficie ya auditada: solo esas 2 llamadas
-  + `ffmpeg/ffprobe` opcionales (degradan con gracia si faltan).
-- PyInstaller del server en Mac; probar el binario suelto contra el TV.
-- Estructura `app/` (proyecto Tauri) en este mismo repo.
-- **Gate:** el binario compilado sirve video al TV igual que el script.
+### C0 · Cimientos — `hecha (2026-07-27)`
+- ✅ Portabilidad de `server_dlna.py`: `ping`/`arp` por SO, caches del binario
+  en el dir de datos del SO (`~/Library/Application Support/MacDLNACast` /
+  `%APPDATA%` / `~/.local/share`), `hud.html` empaquetado (`_MEIPASS`),
+  `os.execv` consciente del modo congelado. `ffmpeg/ffprobe` siguen opcionales.
+- ✅ `build_server_bin.sh` → binario onefile de 8.4 MB (PyInstaller 6.21).
+- ✅ Estructura `app/` (Tauri 2, template vanilla + bun); `cargo check` limpio.
+- ✅ **Gate aprobado:** el binario casteó al TV real — estado `PLAYING`
+  reportado por el televisor con posición avanzando, 7.4 MB servidos.
+- Nota: el binario parte con caches vírgenes; si el TV está apagado del todo
+  en el primer uso, no hay MAC para Wake-on-LAN hasta haberlo visto una vez
+  encendido (igual que un usuario nuevo del script).
 
 ### C1 · App Mac — `pendiente`
 - Ventana Tauri cargando `http://127.0.0.1:8200/hud`.

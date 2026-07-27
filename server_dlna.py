@@ -51,9 +51,41 @@ NO_SSDP = os.environ.get("DLNA_NO_SSDP", "") == "1"
 SSDP_ADDR = "239.255.255.250"
 SSDP_PORT = 1900
 CHUNK = 256 * 1024  # 256 KB por bloque al transmitir
-HUD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hud.html")
-TV_IP_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_ip")
-TV_MAC_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_mac")
+
+IS_FROZEN = getattr(sys, "frozen", False)  # corriendo como binario PyInstaller
+IS_WINDOWS = sys.platform == "win32"
+IS_MACOS = sys.platform == "darwin"
+
+
+def _resource_dir():
+    """Carpeta de recursos de solo lectura (hud.html). En el binario
+    PyInstaller es el bundle temporal (_MEIPASS); como script, la del repo."""
+    if IS_FROZEN:
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _data_dir():
+    """Carpeta persistente para caches (.dlna_tv_ip, etc.). Como script se
+    mantiene junto al repo (comportamiento histórico); congelado, el bundle
+    temporal se borra en cada corrida, así que van al dir de datos del SO."""
+    if not IS_FROZEN:
+        return os.path.dirname(os.path.abspath(__file__))
+    if IS_WINDOWS:
+        root = os.environ.get("APPDATA", os.path.expanduser("~"))
+    elif IS_MACOS:
+        root = os.path.expanduser("~/Library/Application Support")
+    else:
+        root = os.environ.get("XDG_DATA_HOME",
+                              os.path.expanduser("~/.local/share"))
+    d = os.path.join(root, "MacDLNACast")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+HUD_FILE = os.path.join(_resource_dir(), "hud.html")
+TV_IP_CACHE = os.path.join(_data_dir(), ".dlna_tv_ip")
+TV_MAC_CACHE = os.path.join(_data_dir(), ".dlna_tv_mac")
 
 VIDEO_EXTS = (".mp4", ".m4v", ".mkv", ".mov", ".avi", ".ts")
 MIME_MAP = {
@@ -297,26 +329,37 @@ def build_seek_clip(src, offset_s):
 
 def arp_lookup(ip):
     """MAC del TV desde la tabla ARP del sistema (best-effort)."""
+    cmd = ["arp", "-a", ip] if IS_WINDOWS else ["arp", "-n", ip]
     try:
-        out = subprocess.run(["arp", "-n", ip], capture_output=True,
-                             text=True, timeout=3)
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
         for tok in out.stdout.replace("\n", " ").split(" "):
-            if tok.count(":") == 5:
+            # macOS/Linux separan con ":", Windows con "-"
+            sep = ":" if tok.count(":") == 5 else ("-" if tok.count("-") == 5 else None)
+            if sep:
                 # macOS omite el cero a la izquierda (…37:e); lo normalizamos a …37:0e
-                return ":".join(o.zfill(2) for o in tok.lower().split(":"))
+                return ":".join(o.zfill(2) for o in tok.lower().split(sep))
     except Exception:
         pass
     return None
 
 
 def ping_once(ip):
-    """Latencia en ms al TV (macOS: ping -c1 -t1); None si no responde."""
+    """Latencia en ms al TV; None si no responde. Flags por SO:
+    macOS `-c1 -t1` · Linux `-c1 -W1` · Windows `-n 1 -w 1000`."""
+    if IS_WINDOWS:
+        cmd = ["ping", "-n", "1", "-w", "1000", ip]
+    elif IS_MACOS:
+        cmd = ["ping", "-c", "1", "-t", "1", ip]
+    else:
+        cmd = ["ping", "-c", "1", "-W", "1", ip]
     try:
-        out = subprocess.run(["ping", "-c", "1", "-t", "1", ip],
-                             capture_output=True, text=True, timeout=3)
-        if "time=" in out.stdout:
-            frag = out.stdout.split("time=", 1)[1]
-            return float(frag.split(" ", 1)[0])
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+        # macOS/Linux: "time=3.5 ms" · Windows: "time=3ms" o localizado "tiempo=3ms"
+        for key in ("time=", "tiempo="):
+            if key in out.stdout:
+                frag = out.stdout.split(key, 1)[1]
+                num = frag.split("ms", 1)[0].strip().lstrip("<")
+                return float(num)
     except Exception:
         pass
     return None
@@ -981,7 +1024,7 @@ def tv_send_key(key):
 # propio cuadro de "permitir conexión" la primera vez y un token que se
 # reusa después. Implementado a mano (handshake + framing) para no sumar una
 # dependencia — es stdlib puro, como el resto del proyecto.
-TV_WS_TOKEN_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".dlna_tv_ws_token")
+TV_WS_TOKEN_CACHE = os.path.join(_data_dir(), ".dlna_tv_ws_token")
 WS_APP_NAME = "Mac DLNA Cast"
 
 
@@ -1579,7 +1622,12 @@ def network_watch_thread(stop_event):
             print("  [RED] IP cambió de %s a %s — reiniciando para adaptarse..."
                   % (known_ip, cur), flush=True)
             cleanup_temp()
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            # Congelado, sys.executable ES el binario y argv[0] ya lo trae;
+            # duplicarlo pasaría la ruta del binario como si fuera el video.
+            if IS_FROZEN:
+                os.execv(sys.executable, sys.argv)
+            else:
+                os.execv(sys.executable, [sys.executable] + sys.argv)
         pending_ip = cur
 
 
