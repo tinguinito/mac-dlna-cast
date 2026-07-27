@@ -1,0 +1,82 @@
+# Compila la app (Tauri + server sidecar PyInstaller) para macOS, Windows y
+# Linux, y publica los instaladores como Release BORRADOR en GitHub.
+# Disparo: tag v* o manual (workflow_dispatch). El release queda en borrador
+# para que la publicación (y por tanto los links de descarga de la página)
+# sea siempre una decisión humana.
+name: build-app
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["feature/c2-ci-multiplataforma"]  # TEMPORAL: prueba de la CI, quitar antes del merge
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest        # Apple Silicon
+            triple: aarch64-apple-darwin
+            ext: ""
+          - os: macos-13            # Intel
+            triple: x86_64-apple-darwin
+            ext: ""
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+            ext: ".exe"
+          - os: ubuntu-22.04
+            triple: x86_64-unknown-linux-gnu
+            ext: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de sistema (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libgtk-3-dev
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compilar server (PyInstaller)
+        shell: bash
+        run: |
+          python3 -m venv .venv-build
+          if [ -x .venv-build/bin/pip ]; then PIP=.venv-build/bin/pip; else PIP=.venv-build/Scripts/pip.exe; fi
+          $PIP -q install pyinstaller
+          ./build_server_bin.sh
+          mkdir -p app/src-tauri/binaries
+          cp "build/dist/mac-dlna-cast-server${{ matrix.ext }}" \
+             "app/src-tauri/binaries/mac-dlna-cast-server-${{ matrix.triple }}${{ matrix.ext }}"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Instalar deps del frontend
+        working-directory: app
+        run: bun install
+
+      - name: Compilar app y crear release (borrador)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          # Con tag v*: adjunta al release de ese tag. Manual: tag de prueba.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'ci-test' }}
+          releaseName: ${{ github.ref_type == 'tag' && github.ref_name || 'ci-test (manual)' }}
+          releaseDraft: true
+          prerelease: true
