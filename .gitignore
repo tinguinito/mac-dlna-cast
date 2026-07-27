@@ -19,3 +19,9 @@ docs/referencia/estilo-decisiones-usuario.*.md
 .venv-menubar/
 .dlna_menubar.json
 Mac DLNA Cast.app/
+
+# Fase C — artefactos de build del binario (PyInstaller)
+.venv-build/
+build/
+app/node_modules/
+app/src-tauri/target/
