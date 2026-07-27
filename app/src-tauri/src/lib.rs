@@ -109,7 +109,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error building tauri app")
         .run(|app, event| match event {
-            // Reabrir desde el Dock (macOS) → mostrar la ventana.
+            // Reabrir desde el Dock → mostrar la ventana (evento solo macOS).
+            #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => show_main_window(app),
             // Cualquier salida real (⌘Q, menú del tray) mata el server.
             RunEvent::ExitRequested { .. } => kill_server(app),
