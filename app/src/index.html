@@ -1,39 +1,44 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="stylesheet" href="styles.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
-    <script type="module" src="/main.js" defer></script>
-  </head>
-
-  <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
-
-      <div class="row">
-        <a href="https://tauri.app" target="_blank">
-          <img src="/assets/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a
-          href="https://developer.mozilla.org/en-US/docs/Web/JavaScript"
-          target="_blank"
-        >
-          <img
-            src="/assets/javascript.svg"
-            class="logo vanilla"
-            alt="JavaScript logo"
-          />
-        </a>
-      </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
-
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
-  </body>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mac DLNA Cast</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:22px;background:radial-gradient(100% 100% at 50% 50%,#0a0f1a,#05080f 80%);
+    color:#cfe9ff;font-family:"SF Mono",Menlo,Consolas,monospace}
+  .reactor{width:84px;height:84px;position:relative}
+  .ring{position:absolute;inset:0;border-radius:50%;border:2px solid #4fd2ff;
+    box-shadow:0 0 22px rgba(79,210,255,.5);opacity:.85}
+  .mid{inset:14px;border-style:dashed;border-color:rgba(79,210,255,.6);animation:spin 4s linear infinite}
+  .core{position:absolute;inset:30px;border-radius:50%;background:radial-gradient(circle,#e9fbff,#4fd2ff 60%,#1c86b0);
+    box-shadow:0 0 26px rgba(79,210,255,.9);animation:pulse 1.6s ease-in-out infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:.85}50%{opacity:1}}
+  p{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:#6a839e;margin:0}
+  .err{color:#ff4536;max-width:420px;text-align:center;line-height:1.7;text-transform:none;letter-spacing:.03em;display:none}
+</style>
+</head>
+<body>
+  <div class="reactor"><span class="ring"></span><span class="ring mid"></span><span class="core"></span></div>
+  <p id="msg">Encendiendo el reactor…</p>
+  <p class="err" id="err">El servidor no arrancó después de 30 segundos.
+  Cierra la app y vuelve a abrirla; si persiste, revisa que el puerto 8200 esté libre.</p>
+<script>
+  const HUD = "http://127.0.0.1:8200/hud";
+  let tries = 0;
+  const t = setInterval(async () => {
+    tries++;
+    try {
+      const r = await fetch("http://127.0.0.1:8200/stats.json", {cache:"no-store"});
+      if (r.ok) { clearInterval(t); location.replace(HUD); }
+    } catch (e) {}
+    if (tries > 60) {  // 30 s
+      clearInterval(t);
+      document.getElementById("msg").style.display = "none";
+      document.getElementById("err").style.display = "block";
+    }
+  }, 500);
+</script>
+</body>
 </html>

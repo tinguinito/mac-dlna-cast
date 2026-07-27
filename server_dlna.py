@@ -1666,8 +1666,32 @@ def cleanup_temp():
             pass
 
 
+def _stdin_watchdog():
+    """Con DLNA_EXIT_ON_STDIN_EOF=1, muere cuando el stdin heredado se cierra.
+
+    Es el contrato con la app Tauri (fase C): el sidecar hereda un pipe de la
+    app; si la app termina — quit, crash o SIGKILL — el pipe se cierra y este
+    hilo apaga el server. Necesario porque matar al bootloader onefile de
+    PyInstaller (SIGKILL) no alcanza a su proceso hijo real."""
+    if os.environ.get("DLNA_EXIT_ON_STDIN_EOF", "") != "1":
+        return
+
+    def watch():
+        try:
+            while sys.stdin.buffer.read(4096):
+                pass
+        except Exception:
+            pass
+        print("  [APP] stdin cerrado (la app terminó) — apagando server.", flush=True)
+        cleanup_temp()
+        os._exit(0)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def main():
     global LIBRARY
+    _stdin_watchdog()
     usage = ('Uso: python3 server_dlna.py <archivo.mp4 | carpeta> [--start MM:SS] [--library DIR]\n'
              '  <archivo>   sirve ese video    |    <carpeta>   escanea y sirve el primero\n'
              '  --start MM:SS   arranca el video en esa posición (recorte ffmpeg)\n'
