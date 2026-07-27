@@ -62,7 +62,7 @@ Qué aporta Tauri (estrategia copiada de Handy, con la lección de fase B):
 - ✅ **Gate aprobado:** QA en vivo de César — cast al TV desde la ventana con
   posición real avanzando, tray y Dock visibles.
 
-### C2 · Multiplataforma — `pendiente`
+### C2 · Multiplataforma — `en curso (2026-07-27: instaladores v0.5.0 publicados; falta el gate de hardware real)`
 - GitHub Actions: matriz macOS/Windows/Linux, artefactos de instalador.
 - Botones de **descarga directa en la página** (apuntando a GitHub Releases).
 - Manejo de prompts de firewall (macOS/Windows) documentado en la página.
