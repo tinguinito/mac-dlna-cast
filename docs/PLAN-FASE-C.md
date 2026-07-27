@@ -52,11 +52,15 @@ Qué aporta Tauri (estrategia copiada de Handy, con la lección de fase B):
   en el primer uso, no hay MAC para Wake-on-LAN hasta haberlo visto una vez
   encendido (igual que un usuario nuevo del script).
 
-### C1 · App Mac — `pendiente`
-- Ventana Tauri cargando `http://127.0.0.1:8200/hud`.
-- Gestión del sidecar (spawn al abrir, kill en cualquier vía de salida).
-- Tray + Dock, single-instance, quit limpio.
-- **Gate:** QA en vivo de César — reemplaza a la app fase B sin perder nada.
+### C1 · App Mac — `hecha (2026-07-27)`
+- ✅ Ventana Tauri con página de carga → HUD real (sidecar en :8200).
+- ✅ Sidecar gestionado + **watchdog de stdin** en el server
+  (`DLNA_EXIT_ON_STDIN_EOF=1`): se apaga solo si la app muere por cualquier
+  vía — matar al bootloader onefile de PyInstaller no alcanza a su hijo real.
+- ✅ Tray ("Abrir panel"/"Salir"), Dock, single-instance; cerrar ventana solo
+  la oculta (convención macOS), quit real detiene todo.
+- ✅ **Gate aprobado:** QA en vivo de César — cast al TV desde la ventana con
+  posición real avanzando, tray y Dock visibles.
 
 ### C2 · Multiplataforma — `pendiente`
 - GitHub Actions: matriz macOS/Windows/Linux, artefactos de instalador.
