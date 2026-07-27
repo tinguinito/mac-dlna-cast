@@ -8,7 +8,6 @@ name: build-app
 on:
   push:
     tags: ["v*"]
-    branches: ["feature/c2-ci-multiplataforma"]  # TEMPORAL: prueba de la CI, quitar antes del merge
   workflow_dispatch:
 
 jobs:
