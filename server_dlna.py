@@ -892,6 +892,16 @@ def tv_play(timeout=6):
 
 
 def tv_pause():
+    # Idempotente: el Samsung devuelve HTTP 500 si recibe Pause estando ya
+    # en PAUSED_PLAYBACK (visto en QA con doble clic al botón del HUD).
+    try:
+        xml = _soap_call(TV_CTRL["control_url"], AVT_SERVICE, "GetTransportInfo",
+                         "<InstanceID>0</InstanceID>")
+        st = re.search(r"<CurrentTransportState>([^<]*)</CurrentTransportState>", xml)
+        if st and st.group(1) == "PAUSED_PLAYBACK":
+            return xml  # ya está pausado, no hay nada que hacer
+    except Exception:
+        pass  # si no pudimos consultar, intentamos la pausa igual
     return _soap_call(TV_CTRL["control_url"], AVT_SERVICE, "Pause",
                       "<InstanceID>0</InstanceID>")
 

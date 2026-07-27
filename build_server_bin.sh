@@ -14,12 +14,16 @@ fi
 PYI="$DIR/.venv-build/bin/pyinstaller"
 [ -x "$PYI" ] || PYI="$DIR/.venv-build/Scripts/pyinstaller.exe"
 
-# --add-data es relativo al specpath (build/), por eso ../hud.html
+# --add-data es relativo al specpath (build/), por eso ../hud.html.
+# El separador origen/destino es el pathsep del SO: ";" en Windows, ":" resto.
+SEP=":"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";";; esac
+
 "$PYI" --onefile --name mac-dlna-cast-server \
-    --add-data "../hud.html:." \
+    --add-data "../hud.html${SEP}." \
     --distpath "$DIR/build/dist" --workpath "$DIR/build/work" \
     --specpath "$DIR/build" \
     "$DIR/server_dlna.py"
 
 echo
-echo "Binario listo: $DIR/build/dist/mac-dlna-cast-server"
+echo "Binario listo en: $DIR/build/dist/"

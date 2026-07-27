@@ -160,9 +160,18 @@
       <li>Un <strong>Mac</strong> con Python 3 (si no lo tienes: <code>brew install python</code>).</li>
       <li>Un <strong>TV Samsung</strong> de ~2012 en adelante, <strong>conectado a la misma red WiFi</strong> que el Mac.</li>
     </ul>
-    <h3>Instalar (2 comandos, solo la primera vez)</h3>
-    <p class="muted">Por ahora se instala copiando y pegando esto en la Terminal — la versión
-    "descargar y listo" viene en camino (sección Pronto):</p>
+    <h3>Descargar (nuevo — sin terminal)</h3>
+    <div class="links">
+      <a class="btn gold" href="https://github.com/tinguinito/mac-dlna-cast/releases/latest">⬇ macOS (.dmg)</a>
+      <a class="btn" href="https://github.com/tinguinito/mac-dlna-cast/releases/latest">⬇ Windows (.exe)</a>
+      <a class="btn" href="https://github.com/tinguinito/mac-dlna-cast/releases/latest">⬇ Linux (AppImage / deb)</a>
+    </div>
+    <p class="muted" style="margin-top:12px">Los tres llevan a la última versión publicada; elige ahí el
+    archivo de tu sistema. <strong>Avisos al abrir por primera vez</strong> (la app aún no está firmada):
+    en <em>Mac</em>, clic derecho sobre la app → Abrir → Abrir. En <em>Windows</em>, si aparece SmartScreen:
+    "Más información" → "Ejecutar de todas formas". Además, el sistema preguntará si permites que la app
+    <em>reciba conexiones de red</em> — di que sí: así conversa con tu TV.</p>
+    <h3>Alternativa: instalar desde el código (2 comandos)</h3>
     <pre><code><span class="cmt"># 1. Descarga el proyecto</span>
 git clone https://github.com/tinguinito/mac-dlna-cast.git
 cd mac-dlna-cast
