@@ -19,11 +19,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Mac Intel pendiente: los runners macos-13 (Intel) casi no asignan
+          # máquina (en retirada). Vía futura: sidecar bajo Rosetta en el
+          # runner arm + tauri --target x86_64-apple-darwin.
           - os: macos-latest        # Apple Silicon
             triple: aarch64-apple-darwin
-            ext: ""
-          - os: macos-13            # Intel
-            triple: x86_64-apple-darwin
             ext: ""
           - os: windows-latest
             triple: x86_64-pc-windows-msvc
