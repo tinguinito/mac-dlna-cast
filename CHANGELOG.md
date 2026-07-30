@@ -3,6 +3,37 @@
 Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 Sin versionado formal por tags todavía — cada entrada es una sesión de trabajo.
 
+## [0.5.0] - 2026-07-27
+
+Fase C hasta C2: **primera versión descargable e instalable** para macOS
+(Apple Silicon), Windows y Linux — release `v0.5.0` en GitHub con 7
+instaladores. Plan y gates en `docs/PLAN-FASE-C.md`; bitácora en
+`sesion_2026-07-26_app_nativa_y_release_multiplataforma.md`.
+
+### Agregado
+- **`app/`** — shell Tauri 2: ventana con el HUD (servido por el sidecar),
+  tray, single-instance, cerrar-ventana-oculta (convención macOS), reabrir
+  desde el Dock. Salir por cualquier vía detiene el server.
+- **Server como binario** (PyInstaller onefile, `build_server_bin.sh`):
+  `hud.html` empaquetado, caches en el dir de datos del SO, `ping`/`arp`
+  portables (Windows/Linux/macOS), `os.execv` consciente del modo congelado.
+- **CI `build-app`** (GitHub Actions): matriz de 3 SO, instaladores
+  adjuntos a release en borrador (publicar = decisión humana). Mac Intel
+  pendiente (runners `macos-13` sin asignación; vía Rosetta anotada).
+- **Página**: botones de descarga a `releases/latest` + instrucciones
+  Gatekeeper/SmartScreen/firewall.
+- Flujo git: rama `development` de integración; `main` = publicado.
+
+### Arreglado
+- **Server huérfano al cerrar la app Tauri**: matar al bootloader onefile
+  de PyInstaller no mata a su hijo real. Watchdog de stdin
+  (`DLNA_EXIT_ON_STDIN_EOF=1`): el server se apaga solo si la app muere
+  por cualquier vía, incluso crash.
+- **Pausa idempotente**: el Samsung devuelve HTTP 500 ante `Pause` estando
+  ya en `PAUSED_PLAYBACK` (doble clic al botón del HUD). Ahora se consulta
+  `GetTransportInfo` antes de reenviar.
+- `RunEvent::Reopen` es solo-macOS (no compilaba en Windows/Linux).
+
 ## [0.4.0] - 2026-07-26
 
 Fase B del plan "menos fricción": la primera versión que se usa **sin
