@@ -148,6 +148,18 @@ no, cae a la estimación de `/stats.json`. Endpoints de control:
   capturar `id` de biblioteca + `reltime_s` (`/api/tvpos`, `/api/library`) y
   recargar + saltar a esa posición después del reinicio.
 
+- **La Apple TV no habla DLNA/UPnP.** El modelo DMC (SOAP a `:9197/dmr`) no
+  aplica: tvOS usa AirPlay. Para verla desde este server hay app cliente DLNA
+  (VLC/Infuse) o AirPlay manual; controlarla desde el HUD requeriría `pyatv`
+  (rompe stdlib pura) y **pairing con PIN obligatorio** (devuelve 403 sin
+  credenciales). Detalle y equivalencias SOAP↔pyatv en
+  `docs/referencia/apple-tv-y-verificacion-de-casts-2026-08-15.md`.
+
+- **Para verificar un cast de AirPlay, `lsof` y `netstat` mienten**: el socket
+  lo tiene `AirPlayXPCHelper`, que corre como root y no aparece sin `sudo`. El
+  único método que atribuye tráfico por proceso es el delta de
+  `nettop -P -x -J bytes_out -l 1`. Misma nota de referencia, §2.
+
 ## El TV (referencia)
 
 Samsung **UN55NU7095**, WiFi **solo 2.4 GHz**. Expone:
