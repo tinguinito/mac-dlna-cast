@@ -3,6 +3,19 @@
 Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/).
 Sin versionado formal por tags todavía — cada entrada es una sesión de trabajo.
 
+## [Sin publicar] - 2026-09-19
+
+### Corregido
+- **Wake-on-LAN salía a una MAC muerta.** El TV apareció en la red con una
+  MAC distinta a la cacheada (`4a:6f:5a:…`, bit "administrada localmente":
+  dirección aleatoria o un extensor/mesh respondiendo el ARP), y el hilo de
+  salud nunca reconsultaba ARP una vez conocía una MAC. Ahora: el cache
+  `.dlna_tv_mac` guarda un historial (una MAC por línea, la más reciente
+  primero, máx. 4), `tv_health_thread` reconsulta ARP cada 30 s, y
+  `wake_tv()` manda el paquete mágico a todas las MACs conocidas. Verificado
+  en vivo: `/api/wake` → "TV respondiendo". Requiere recompilar el sidecar
+  (`build_server_bin.sh` + `bun tauri build`) para que llegue a la app Tauri.
+
 ## [0.5.0] - 2026-07-27
 
 Fase C hasta C2: **primera versión descargable e instalable** para macOS

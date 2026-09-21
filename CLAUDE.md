@@ -122,9 +122,11 @@ no, cae a la estimación de `/stats.json`. Endpoints de control:
 
 - **Wake-on-LAN SÍ funciona en este TV** (Samsung UN55NU7095, 2018, WiFi),
   confirmado en vivo con la pantalla apagada de verdad (no solo standby).
-  `wake_tv()` manda el paquete mágico a la MAC cacheada en `.dlna_tv_mac`
-  (persistida vía ARP). `cast_to_tv()` lo intenta solo si no encuentra el
-  MediaRenderer.
+  `wake_tv()` manda el paquete mágico a **todas** las MACs del historial
+  `.dlna_tv_mac` (una por línea, persistidas vía ARP, reconsultado cada
+  30 s): el TV ha aparecido con una MAC "administrada localmente" distinta a
+  la de fábrica, y WOL a una sola MAC cacheada fallaba. `cast_to_tv()` lo
+  intenta solo si no encuentra el MediaRenderer.
 
 - **Apagado remoto por WebSocket (`ms.remote.control`, puerto 8001/8002) está
   implementado pero NO funciona contra este TV.** El canal conecta bien pero

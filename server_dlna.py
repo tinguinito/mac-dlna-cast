@@ -365,31 +365,64 @@ def ping_once(ip):
     return None
 
 
-def _read_tv_mac_cache():
+def _read_tv_mac_cache_all():
+    """Historial de MACs vistas del TV, la más reciente primero. El cache es
+    una MAC por línea: el TV puede cambiar de MAC (dirección aleatoria o un
+    extensor/mesh que responde el ARP por él), y la que escucha WOL en standby
+    puede ser una anterior."""
     try:
         with open(TV_MAC_CACHE) as f:
-            return f.read().strip() or None
+            seen, out = set(), []
+            for line in f:
+                m = line.strip().lower()
+                if m and m not in seen:
+                    seen.add(m)
+                    out.append(m)
+            return out
     except OSError:
-        return None
+        return []
+
+
+def _read_tv_mac_cache():
+    macs = _read_tv_mac_cache_all()
+    return macs[0] if macs else None
+
+
+TV_MAC_HISTORY_MAX = 4
 
 
 def _write_tv_mac_cache(mac):
+    """Pone `mac` al frente del historial sin perder las anteriores."""
+    mac = mac.lower()
+    macs = [mac] + [m for m in _read_tv_mac_cache_all() if m != mac]
     try:
         with open(TV_MAC_CACHE, "w") as f:
-            f.write(mac)
+            f.write("\n".join(macs[:TV_MAC_HISTORY_MAX]) + "\n")
     except OSError:
         pass
 
 
+TV_MAC_RECHECK_S = 30
+
+
 def tv_health_thread(stop_event):
-    """Cada 3 s: pinguea al TV conectado y resuelve su MAC. Alimenta el HUD."""
+    """Cada 3 s: pinguea al TV conectado y resuelve su MAC. Alimenta el HUD.
+    Reconsulta ARP cada TV_MAC_RECHECK_S aunque ya tenga una MAC: si el TV
+    cambia de MAC y no lo notamos, el Wake-on-LAN sale a una dirección muerta."""
+    last_arp = 0.0
     while not stop_event.is_set():
         with _metrics_lock:
             ip = METRICS["tv_ip"]
             have_mac = METRICS["tv_mac"]
         if ip:
             ms = ping_once(ip)
-            mac = have_mac or arp_lookup(ip)
+            now = time.time()
+            recheck = ms is not None and (now - last_arp) >= TV_MAC_RECHECK_S
+            if have_mac and not recheck:
+                mac = have_mac
+            else:
+                mac = arp_lookup(ip) or have_mac
+                last_arp = now
             with _metrics_lock:
                 METRICS["tv_ping_ms"] = round(ms, 1) if ms is not None else None
                 METRICS["tv_alive"] = ms is not None
@@ -405,23 +438,33 @@ def wake_tv():
     """Manda un paquete mágico Wake-on-LAN a la MAC conocida del TV. Verificado
     en vivo: el Samsung UN55NU7095 SÍ enciende de un apagado real por esto
     (no solo standby de red). -> (ok, mensaje)."""
-    mac = METRICS.get("tv_mac") or _read_tv_mac_cache()
-    if not mac:
+    # Todas las MACs conocidas: la actual y el historial. El TV puede estar
+    # escuchando en standby con una MAC distinta a la última vista.
+    macs, seen = [], set()
+    for m in [METRICS.get("tv_mac")] + _read_tv_mac_cache_all():
+        if m and m.lower() not in seen:
+            seen.add(m.lower())
+            macs.append(m.lower())
+    if not macs:
         return False, "No tengo la MAC del TV todavía (necesita haberse visto una vez)"
-    try:
-        mac_bytes = bytes.fromhex(mac.replace(":", ""))
-    except ValueError:
-        return False, "MAC inválida en caché: %s" % mac
-    magic = b"\xff" * 6 + mac_bytes * 16
+    magics = []
+    for mac in macs:
+        try:
+            magics.append(b"\xff" * 6 + bytes.fromhex(mac.replace(":", "")) * 16)
+        except ValueError:
+            continue
+    if not magics:
+        return False, "MAC inválida en caché: %s" % ", ".join(macs)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     try:
-        for port in (9, 7):
-            for addr in ("<broadcast>", "255.255.255.255"):
-                sock.sendto(magic, (addr, port))
+        for magic in magics:
+            for port in (9, 7):
+                for addr in ("<broadcast>", "255.255.255.255"):
+                    sock.sendto(magic, (addr, port))
     finally:
         sock.close()
-    return True, "WOL enviado a " + mac
+    return True, "WOL enviado a " + ", ".join(macs)
 
 
 def wait_tv_awake(timeout_s=20, interval_s=2):
